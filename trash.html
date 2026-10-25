@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trash &middot; Cargo Demo Template</title>
+  <meta name="description" content="삭제된 사물, 사진, 리서치, 메모를 안전하게 보관하고 복원하는 휴지통">
+  <link rel="stylesheet" href="css/style.css?v=save3">
+</head>
+<body class="is-document-scroll">
+  <header class="trash-top-header">
+    <div class="col-header">
+      <div class="col-header-left">
+        <span class="col-header-title">Trash</span>
+        <span class="col-header-meta mono" id="trash-meta-count" style="opacity:0.4;"></span>
+      </div>
+      <div class="col-header-right">
+        <button type="button" class="col-header-menu-btn" title="Navigation">&equiv;</button>
+      </div>
+    </div>
+  </header>
+  <main id="trash-main-container" class="trash-page-container">
+    <!-- Rendered reactively by js/trash.js -->
+  </main>
+  <button type="button" id="global-floating-save-btn" class="global-floating-save-btn mono" title="현재 아카이브 데이터를 소스 파일(data/archive.json)에 영구 저장" onclick="window.triggerSourceSave()">
+    <span>💾</span><span>Save</span>
+  </button>
+  <div id="archive-save-toast" class="archive-save-toast"></div>
+  <div class="reference-footer">&copy; Archive of Matter 2026</div>
+
+  <script src="js/app.js?v=save3"></script>
+  <script src="js/keywords.js?v=save3"></script>
+  <script src="js/trash.js?v=save3"></script>
+  <script src="js/save-helper.js?v=save3"></script>
+</body>
+</html>

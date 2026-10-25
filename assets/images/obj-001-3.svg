@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+    <rect width="800" height="600" fill="#F8F8F8"/>
+    <rect x="40" y="40" width="720" height="520" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/>
+    <!-- Spiral Spring -->
+    <g transform="translate(400,300)" stroke="#000000" fill="none" stroke-width="1.8">
+      <path d="M 0,0 
+               A 15,15 0 0,1 0,30
+               A 35,35 0 0,1 0,-40
+               A 60,60 0 0,1 0,80
+               A 90,90 0 0,1 0,-100
+               A 125,125 0 0,1 0,150
+               A 160,160 0 0,1 0,-170"/>
+      <circle cx="0" cy="0" r="6" fill="#000000"/>
+    </g>
+    <text x="400" y="510" font-family="monospace" font-size="14" text-anchor="middle" fill="#000000">SPIRAL MAINSPRING STEEL COIL</text>
+    <text x="60" y="70" font-family="monospace" font-size="11" fill="#666666">PLATE 01-C &middot; 0.35x4.8x480mm HIGH CARBON STEEL</text>
+  </svg>

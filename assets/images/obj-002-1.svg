@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+    <rect width="800" height="600" fill="#F8F8F8"/>
+    <rect x="40" y="40" width="720" height="520" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/>
+    <!-- Transducer Unit -->
+    <circle cx="400" cy="300" r="160" fill="none" stroke="#000000" stroke-width="2"/>
+    <circle cx="400" cy="300" r="130" fill="none" stroke="#000000" stroke-width="1"/>
+    <circle cx="400" cy="300" r="60" fill="none" stroke="#000000" stroke-width="1.5"/>
+    <circle cx="400" cy="300" r="25" fill="#EAEAEA" stroke="#000000" stroke-width="1"/>
+    <!-- Diaphragm radial ribs -->
+    <g stroke="#000000" stroke-width="0.8">
+      <line x1="400" y1="140" x2="400" y2="170"/>
+      <line x1="400" y1="430" x2="400" y2="460"/>
+      <line x1="240" y1="300" x2="270" y2="300"/>
+      <line x1="530" y1="300" x2="560" y2="300"/>
+      <line x1="287" y1="187" x2="308" y2="208"/>
+      <line x1="492" y1="392" x2="513" y2="413"/>
+      <line x1="287" y1="413" x2="308" y2="392"/>
+      <line x1="492" y1="208" x2="513" y2="187"/>
+    </g>
+    <text x="400" y="500" font-family="monospace" font-size="14" text-anchor="middle" fill="#000000">DYNAMIC TRANSDUCER // 40mm UNIT</text>
+    <text x="60" y="70" font-family="monospace" font-size="11" fill="#666666">PLATE 02-A &middot; PET MYLAR DIAPHRAGM</text>
+  </svg>

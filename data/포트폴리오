@@ -1,0 +1,11 @@
+# Minimalist Portfolio & Archive Project
+
+새로운 Next.js 포트폴리오 웹 애플리케이션이 아래 경로에 성공적으로 생성되었습니다:
+
+📂 프로젝트 위치: `portfolio/`
+📄 프로젝트 데이터 편집 파일: `portfolio/data/projects.ts` (또는 `portfolio/src/data/projects.ts`)
+📖 상세 배포 및 사용 설명서: `portfolio/README.md`
+
+로컬 실행 확인:
+- 브라우저 주소: http://localhost:3000
+- 빌드 검증: `npm run build` 완료 (성공)

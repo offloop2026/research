@@ -1,0 +1,49 @@
+/* ==========================================================================
+   TYPOGRAPHY (typography.css)
+   Exact Reproduction of Cargo Reference Typography:
+   - Small editorial serif font stack: Georgia, "Times New Roman", Times, serif
+   - Base font-size: 13px
+   - Line-height: 1.25 (dense editorial text)
+   - Font weight: 400 (regular throughout, bold used extremely sparingly)
+   - Genuine italics for titles
+   ========================================================================== */
+
+:root {
+  --font-serif: Georgia, "Times New Roman", Times, "Nanum Myeongjo", serif;
+  --font-mono: "Space Mono", "Courier New", Courier, monospace;
+
+  --c-text-primary: #111111;
+  --c-text-secondary: #555555;
+  --c-text-muted: #777777;
+  --c-border-divider: #D5D5D5;
+  --c-border-subtle: #E0E0E0;
+  --c-image-bg: #F4F4F4;
+  --c-image-frame-outer: #666666;
+  --c-image-frame-inner: #AAAAAA;
+
+  --font-size-base: 13px;
+  --font-size-small: 11px;
+  --line-height-base: 1.25;
+}
+
+html, body {
+  font-family: var(--font-serif);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
+  font-weight: 400;
+  color: var(--c-text-primary);
+  background: #FFFFFF;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-small);
+}
+
+.serif-italic {
+  font-style: italic;
+}

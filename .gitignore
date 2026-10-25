@@ -1,0 +1,16 @@
+# Operating System files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Local runtime server backups (data/archive.json is the active database)
+data/backups/
+
+# Separate subprojects & scratch
+portfolio/
+scratch/

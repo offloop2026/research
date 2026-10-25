@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+    <rect width="800" height="600" fill="#F8F8F8"/>
+    <rect x="40" y="40" width="720" height="520" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"/>
+    <!-- Gear Assembly -->
+    <g transform="translate(400,300)">
+      <circle cx="-60" cy="0" r="90" fill="none" stroke="#000000" stroke-width="1.5"/>
+      <circle cx="-60" cy="0" r="30" fill="none" stroke="#000000" stroke-width="1"/>
+      <!-- Escapement gear teeth -->
+      <circle cx="70" cy="-30" r="60" fill="none" stroke="#000000" stroke-width="1.5" stroke-dasharray="8,4"/>
+      <circle cx="70" cy="-30" r="12" fill="#000000"/>
+      <line x1="-60" y1="0" x2="70" y2="-30" stroke="#000000" stroke-width="0.8" stroke-dasharray="2,4"/>
+      <path d="M 60,-90 L 80,-40 L 100,-85" fill="none" stroke="#000000" stroke-width="2"/>
+    </g>
+    <text x="400" y="460" font-family="monospace" font-size="14" text-anchor="middle" fill="#000000">INTERNAL ESCAPEMENT &amp; GEAR TRAIN</text>
+    <text x="60" y="70" font-family="monospace" font-size="11" fill="#666666">PLATE 01-B &middot; BRASS WHEEL ASSEMBLY</text>
+  </svg>

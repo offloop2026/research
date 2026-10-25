@@ -1,0 +1,249 @@
+/* ==========================================================================
+   LAYOUT FRAMEWORK (layout.css)
+   Exact Recreation of Reference Screenshot Geometry:
+   - Full viewport continuous publication sheet (100vw x 100vh)
+   - Exactly 3 equal vertical columns (33.333% each)
+   - Extremely thin vertical divider lines between columns (x ≈ 514px, x ≈ 1028px on 1540px)
+   - Small quiet header (28px height, 13px serif font, plain text "=" right)
+   - Independent vertical scrolling per column
+   - Fixed subtle footer at bottom-left
+   - No outer rounded cards, no container padding, no modern UI chrome
+   ========================================================================== */
+
+html, body {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: #FFFFFF;
+}
+
+/* Document-level scrolling pages (Field Research, Trash) */
+body.is-document-scroll,
+html:has(.is-document-scroll),
+html:has(.field-research-page-container),
+html:has(.trash-page-container),
+body:has(.field-research-page-container),
+body:has(.trash-page-container) {
+  height: auto !important;
+  min-height: 100vh !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Fixed viewport layouts (Archive 3-Col, Photo 3-Col, Memo Infinite Canvas) */
+html:has(.reference-3col-layout),
+body:has(.reference-3col-layout),
+html:has(.memo-board-fullpage),
+body:has(.memo-board-fullpage) {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 3 Equal Columns Continuous Publication Sheet */
+.reference-3col-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.memo-board-fullpage,
+.constellation-board-fullpage {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #FFFFFF;
+  box-sizing: border-box;
+}
+
+/* Individual Column */
+.editorial-col {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  border-right: 1px solid #ECECEC;
+  background: #FFFFFF;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.editorial-col:last-child {
+  border-right: none;
+}
+
+/* Page / Column Header (Quiet, 28px height, serif font) */
+.col-header {
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+  padding: 0 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ECECEC;
+  background: #FFFFFF;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  box-sizing: border-box;
+  user-select: none;
+  z-index: 20;
+}
+
+.col-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.col-header-title {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--c-text-primary);
+  text-decoration: none;
+  line-height: 1;
+}
+
+.col-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Menu '=' Symbol (Plain serif text, NOT modern icon or button) */
+.col-header-menu-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-serif);
+  font-size: 14px;
+  line-height: 1;
+  color: #333333;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.85;
+  transition: opacity 0.12s ease;
+  text-decoration: none;
+  user-select: none;
+}
+
+.col-header-menu-btn:hover {
+  opacity: 1;
+}
+
+/* Independent Column Scrolling Body */
+.col-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 0 60px 0;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #D8D8D8 transparent;
+}
+
+.col-scroll-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.col-scroll-body::-webkit-scrollbar-thumb {
+  background-color: #D8D8D8;
+}
+
+.col-scroll-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Subtle Fixed Footer (Bottom Left) */
+.reference-footer {
+  position: fixed;
+  bottom: 8px;
+  left: 16px;
+  font-family: var(--font-serif);
+  font-size: 11px;
+  color: #777777;
+  pointer-events: none;
+  z-index: 100;
+  letter-spacing: 0.01em;
+}
+
+/* Global Nav Popover Menu (Attached to '=') */
+.editorial-menu-dropdown {
+  position: absolute;
+  top: 30px;
+  right: 12px;
+  width: 210px;
+  background: #FFFFFF;
+  border: 1px solid #777777;
+  padding: 6px 0;
+  display: none;
+  flex-direction: column;
+  z-index: 1000;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.editorial-menu-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 14px;
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: #111111;
+  text-decoration: none;
+  transition: background 0.1s ease;
+}
+
+.editorial-menu-item:hover {
+  background: #F4F4F4;
+  text-decoration: underline;
+}
+
+.editorial-menu-item.active {
+  font-style: italic;
+}
+
+/* Responsive Fallback (Desktop remains priority) */
+@media (max-width: 960px) {
+  .reference-3col-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+  .editorial-col:nth-child(2) {
+    border-right: none;
+  }
+  .editorial-col:nth-child(3) {
+    grid-column: 1 / -1;
+    border-top: 1px solid #ECECEC;
+  }
+}
+
+@media (max-width: 680px) {
+  html, body {
+    overflow: auto;
+    height: auto;
+  }
+  .reference-3col-layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .editorial-col {
+    border-right: none;
+    border-bottom: 1px solid #ECECEC;
+    height: auto;
+    min-height: 480px;
+  }
+  .col-scroll-body {
+    overflow: visible;
+    padding-bottom: 30px;
+  }
+  .reference-footer {
+    position: static;
+    padding: 16px;
+  }
+}

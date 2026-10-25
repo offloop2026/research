@@ -1,0 +1,432 @@
+/* ==========================================================================
+   CONSTELLATION VIEW (constellation.css)
+   Cargo-Inspired Editorial Spatial Board:
+   - Zero decorative horizontal rules
+   - Sharp 0px corners, zero box-shadows, pure white plane
+   - Functional user-drawn random RGB lines with real-time tracking
+   ========================================================================== */
+
+.constellation-editorial-shell,
+.memo-editorial-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #FFFFFF;
+}
+
+.constellation-board-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #FFFFFF;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 1. Constellation Top Bar (No bottom line) */
+.constellation-board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 24px 36px 16px 36px;
+  border-bottom: none; /* No decorative line */
+  background: rgba(255, 255, 255, 0.95);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.board-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.board-heading {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: #000000;
+  margin: 0;
+}
+
+.board-sub-caption {
+  font-size: 0.72rem;
+  color: #888888;
+}
+
+.board-header-right {
+  display: flex;
+  align-items: center;
+}
+
+/* 2. "+ ADD OBJECT" Action & Dropdown Popover */
+.constellation-add-wrap {
+  position: relative;
+}
+
+.board-action-btn {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: #000000;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s ease;
+}
+
+.board-action-btn:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.constellation-add-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  max-width: 90vw;
+  background: #FFFFFF;
+  border: 1px solid #000000;
+  box-shadow: none; /* No shadow */
+  z-index: 200;
+}
+
+.add-popover-header {
+  padding: 12px 14px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #FFFFFF;
+}
+
+.add-popover-close {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #666666;
+  padding: 0;
+}
+
+.add-popover-close:hover {
+  color: #000000;
+}
+
+.add-popover-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.popover-obj-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: none;
+  border-top: 1px solid #F0F0F0;
+  background: #FFFFFF;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+  font-family: var(--font-mono);
+  width: 100%;
+}
+
+.popover-obj-item:hover {
+  background: #F8F8F8;
+}
+
+.popover-obj-item.is-placed {
+  opacity: 0.55;
+}
+
+.obj-item-title {
+  font-size: 0.75rem;
+  color: #000000;
+  flex: 1;
+  margin-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.obj-item-id {
+  font-size: 0.65rem;
+  color: #888888;
+  margin-right: 8px;
+}
+
+.obj-item-tag {
+  font-size: 0.62rem;
+  color: #888888;
+  background: #F0F0F0;
+  padding: 1px 4px;
+}
+
+.obj-item-action {
+  font-size: 0.65rem;
+  color: #000000;
+  text-decoration: underline;
+}
+
+/* 3. Freeform Constellation Canvas Stage */
+.constellation-stage {
+  position: relative;
+  flex: 1;
+  min-height: 850px;
+  background: #FFFFFF;
+  overflow: auto;
+}
+
+/* 4. SVG Connections Layer */
+.constellation-connections-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.constellation-connections-layer g {
+  pointer-events: auto;
+}
+
+.temp-connection-line {
+  stroke: #000000;
+  stroke-width: 1.6;
+  stroke-dasharray: 4, 4;
+  pointer-events: none;
+}
+
+.constellation-conn-edge {
+  cursor: pointer;
+}
+
+.conn-hitbox {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.conn-line {
+  transition: stroke-width 0.15s ease;
+}
+
+.conn-del-badge {
+  fill: #FFFFFF;
+  stroke: #000000;
+  stroke-width: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  cursor: pointer;
+}
+
+.conn-del-text {
+  fill: #000000;
+  font-size: 10px;
+  font-weight: bold;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.constellation-conn-edge:hover .conn-line {
+  stroke-width: 2.6;
+}
+
+.constellation-conn-edge:hover .conn-del-badge,
+.constellation-conn-edge:hover .conn-del-text {
+  opacity: 1;
+}
+
+/* 5. Minimal Draggable Object Marker (No card border, no shadow) */
+.constellation-object-node {
+  position: absolute;
+  width: 220px;
+  background: #FAFAFA;
+  border: none; /* No card border */
+  box-shadow: none; /* No shadow */
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease;
+}
+
+.constellation-object-node:hover {
+  background: #FFFFFF;
+  outline: 1px solid #CCCCCC;
+}
+
+.constellation-object-node.is-dragging-node {
+  background: #FFFFFF;
+  outline: 1px solid #000000;
+}
+
+/* Node Header (Window Drag Handle) */
+.c-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  font-size: 0.65rem;
+  color: #888888;
+  touch-action: none;
+}
+
+.c-node-header:active,
+.is-dragging-node .c-node-header {
+  cursor: grabbing;
+}
+
+/* Node Connection Dot (●) */
+.c-node-connect-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  cursor: crosshair;
+  position: relative;
+  touch-action: none;
+}
+
+.c-node-connect-handle .connect-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #000000;
+  pointer-events: none;
+  transition: transform 0.15s ease;
+}
+
+.c-node-connect-handle:hover .connect-dot {
+  transform: scale(1.4);
+}
+
+.c-node-connect-handle.is-dragging-source .connect-dot {
+  transform: scale(1.7);
+}
+
+.c-node-connect-handle.is-drag-target-candidate .connect-dot {
+  transform: scale(2);
+  outline: 2px solid #000000;
+}
+
+.c-node-id {
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  color: #888888;
+  flex: 1;
+  margin-left: 8px;
+}
+
+.c-node-remove {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  line-height: 1;
+  color: #999999;
+  cursor: pointer;
+  padding: 0;
+}
+
+.c-node-remove:hover {
+  color: #000000;
+}
+
+/* Node Body */
+.c-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.c-node-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.c-node-title a {
+  color: #000000;
+  text-decoration: none;
+}
+
+.c-node-title a:hover {
+  text-decoration: underline;
+}
+
+.c-node-img-link {
+  display: block;
+  width: 100%;
+  height: 120px;
+  background: #F0F0F0;
+  overflow: hidden;
+}
+
+.c-node-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: contrast(1.02);
+  transition: transform 0.2s ease;
+}
+
+.c-node-img-link:hover .c-node-img {
+  transform: scale(1.03);
+}
+
+/* Node Footer */
+.c-node-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.65rem;
+  color: #888888;
+}
+
+.c-node-jump-link {
+  color: #000000;
+  text-decoration: none;
+  opacity: 0.65;
+}
+
+.c-node-jump-link:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .constellation-board-header {
+    padding: 16px 20px;
+  }
+
+  .constellation-object-node {
+    width: 190px;
+  }
+
+  .c-node-img-link {
+    height: 95px;
+  }
+}

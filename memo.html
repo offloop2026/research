@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memo Board &middot; Cargo Demo Template</title>
+  <meta name="description" content="사물에 연결된 기록과 메모를 자유롭게 배치하고 시각적으로 연결하는 메모 공간">
+  <link rel="stylesheet" href="css/style.css?v=save3">
+</head>
+<body>
+  <main id="memo-main-container" class="memo-board-fullpage">
+    <!-- Rendered reactively by memo.js into freeform canvas with quiet serif header -->
+  </main>
+  <button type="button" id="global-floating-save-btn" class="global-floating-save-btn mono" title="현재 아카이브 데이터를 소스 파일(data/archive.json)에 영구 저장" onclick="window.triggerSourceSave()">
+    <span>💾</span><span>Save</span>
+  </button>
+  <div id="archive-save-toast" class="archive-save-toast"></div>
+  <div class="reference-footer">&copy; Archive of Matter 2026</div>
+
+  <script src="js/app.js?v=save3"></script>
+  <script src="js/keywords.js?v=save3"></script>
+  <script src="js/memo.js?v=save3"></script>
+  <script src="js/save-helper.js?v=save3"></script>
+</body>
+</html>

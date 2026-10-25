@@ -1,0 +1,72 @@
+/* ARCHIVE OF MATTER - MASTER STYLESHEET */
+@import url('reset.css');
+@import url('typography.css');
+@import url('layout.css');
+@import url('views.css');
+@import url('constellation.css');
+@import url('modal.css');
+
+/* Direct Master Styles for Save Button & Toast */
+#global-floating-save-btn {
+  position: fixed !important;
+  top: 3px !important;
+  right: 42px !important;
+  height: 22px !important;
+  line-height: 20px !important;
+  padding: 0 9px !important;
+  background: #111111 !important;
+  color: #FFFFFF !important;
+  border: 1px solid #111111 !important;
+  font-family: Georgia, "Times New Roman", serif !important;
+  font-size: 11px !important;
+  letter-spacing: 0.02em !important;
+  cursor: pointer !important;
+  z-index: 9999999 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  border-radius: 2px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25) !important;
+  user-select: none !important;
+  box-sizing: border-box !important;
+}
+
+#global-floating-save-btn:hover {
+  background: #2b2b2b !important;
+  border-color: #2b2b2b !important;
+}
+
+#archive-save-toast {
+  position: fixed !important;
+  top: 36px !important;
+  right: 24px !important;
+  background: #111111 !important;
+  color: #FFFFFF !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
+  padding: 12px 20px !important;
+  display: flex !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transform: translateY(-8px) !important;
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease !important;
+  align-items: center !important;
+  gap: 10px !important;
+  z-index: 99999999 !important;
+  border-left: 4px solid #28a745 !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4) !important;
+  border-radius: 2px !important;
+  pointer-events: none !important;
+}
+
+#archive-save-toast.show {
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(0) !important;
+}
+
+#archive-save-toast.is-error {
+  border-left-color: #dc3545 !important;
+}

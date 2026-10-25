@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo &middot; Cargo Demo Template</title>
+  <meta name="description" content="사물 아카이브의 대형 사진과 시각적 기록을 탐색하는 수직 사진 아카이브">
+  <link rel="stylesheet" href="css/style.css?v=save3">
+</head>
+<body>
+  <main id="photo-main-container" class="reference-3col-layout">
+    <!-- Rendered reactively by photo.js into 3 independent editorial columns -->
+  </main>
+  <button type="button" id="global-floating-save-btn" class="global-floating-save-btn mono" title="현재 아카이브 데이터를 소스 파일(data/archive.json)에 영구 저장" onclick="window.triggerSourceSave()">
+    <span>💾</span><span>Save</span>
+  </button>
+  <div id="archive-save-toast" class="archive-save-toast"></div>
+  <div class="reference-footer">&copy; Archive of Matter 2026</div>
+
+  <script src="js/app.js?v=save3"></script>
+  <script src="js/keywords.js?v=save3"></script>
+  <script src="js/photo.js?v=save3"></script>
+  <script src="js/save-helper.js?v=save3"></script>
+</body>
+</html>
