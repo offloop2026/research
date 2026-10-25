@@ -124,6 +124,9 @@ function renderFieldResearchView() {
           <span class="col-header-meta mono" style="opacity:0.4;">${researchList.length}</span>
         </div>
         <div class="col-header-right">
+          <button type="button" class="col-header-edit-badge mono" id="btn-fr-download-json" title="현재 필드 리서치 및 아카이브 데이터를 JSON 백업 파일로 다운로드">
+            [📥 JSON 백업]
+          </button>
           <button type="button" class="col-header-edit-badge mono" id="btn-fr-quick-upload-photo" title="사진·동영상 파일 다중 선택 및 즉시 등록" style="background:#000; color:#FFF; font-weight:bold;">
             [📷/🎥 + 미디어 등록]
           </button>
@@ -252,6 +255,11 @@ function renderFieldResearchView() {
   document.getElementById('btn-fr-quick-upload-photo')?.addEventListener('click', triggerGlobalPhotoUpload);
   document.getElementById('btn-empty-upload-photos')?.addEventListener('click', triggerGlobalPhotoUpload);
   document.getElementById('fr-global-photo-input')?.addEventListener('change', handleGlobalPhotoSelect);
+  document.getElementById('btn-fr-download-json')?.addEventListener('click', () => {
+    if (typeof window.downloadArchiveBackup === 'function') {
+      window.downloadArchiveBackup();
+    }
+  });
 
   const handleAddResearch = () => {
     const now = new Date();
@@ -464,6 +472,7 @@ function renderResearchEditor(draft, idx) {
       <div class="editor-header-bar mono">
         <span>Editing Research ${draft.numStr || String(idx + 1).padStart(2, '0')}</span>
         <div class="editor-header-actions">
+          <button type="button" class="btn-cancel-edit-res mono" id="btn-editor-download-backup" title="현재 작성된 리서치 JSON 백업 다운로드">[📥 JSON 백업]</button>
           <button type="button" class="btn-cancel-edit-res mono" id="btn-cancel-res-edit">[Cancel]</button>
           <button type="button" class="btn-save-edit-res mono" id="btn-save-res-edit" style="color:#C00000; font-weight:bold;">[저장 (Save)]</button>
         </div>
@@ -524,6 +533,7 @@ function renderResearchEditor(draft, idx) {
       </div>
 
       <div class="editor-bottom-bar mono">
+        <button type="button" class="btn-cancel-edit-res mono" id="btn-editor-download-backup-bottom" title="현재 작성된 리서치 JSON 백업 다운로드">[📥 JSON 백업]</button>
         <button type="button" class="btn-cancel-edit-res mono" id="btn-cancel-res-edit-bottom">[Cancel]</button>
         <button type="button" class="btn-save-edit-res mono" id="btn-save-res-edit-bottom" style="color:#C00000; font-weight:bold;">[저장 (Save)]</button>
       </div>
@@ -707,6 +717,16 @@ function bindEditorEvents(container) {
 
   document.getElementById('btn-cancel-res-edit')?.addEventListener('click', handleCancel);
   document.getElementById('btn-cancel-res-edit-bottom')?.addEventListener('click', handleCancel);
+
+  const handleEditorBackupDownload = () => {
+    syncDraftMeta();
+    syncBlocks();
+    if (typeof window.downloadArchiveBackup === 'function') {
+      window.downloadArchiveBackup();
+    }
+  };
+  document.getElementById('btn-editor-download-backup')?.addEventListener('click', handleEditorBackupDownload);
+  document.getElementById('btn-editor-download-backup-bottom')?.addEventListener('click', handleEditorBackupDownload);
 
   // Add block buttons
   document.getElementById('btn-add-text-block')?.addEventListener('click', () => {

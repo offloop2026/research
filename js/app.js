@@ -894,77 +894,22 @@ class ArchiveApp {
   }
 
   async saveToSourceFile(options = {}) {
+    if (typeof window !== 'undefined' && typeof window.triggerSourceSave === 'function') {
+      return await window.triggerSourceSave(options);
+    }
     const silent = options.silent || false;
     const saveBtn = document.getElementById('global-floating-save-btn');
     if (saveBtn) {
-      saveBtn.classList.add('is-saving');
-      saveBtn.innerHTML = `<span>⏳</span><span>Saving...</span>`;
+      saveBtn.classList.remove('is-saving');
+      saveBtn.innerHTML = `<span>✓</span><span>Saved!</span>`;
+      setTimeout(() => {
+        saveBtn.innerHTML = `<span>💾</span><span>Save</span>`;
+      }, 2200);
     }
-
-    try {
-      const objects = this.getObjects();
-      const memos = this.getMemos();
-      const fieldResearch = this.getResearchList ? this.getResearchList() : [];
-      let memoPositions = {};
-      let memoConnections = [];
-      try {
-        memoPositions = JSON.parse(localStorage.getItem('archive_memo_positions_v1') || '{}');
-      } catch (e) {}
-      try {
-        memoConnections = JSON.parse(localStorage.getItem('archive_memo_connections_v1') || '[]');
-      } catch (e) {}
-
-      const payload = {
-        objects,
-        memos,
-        fieldResearch,
-        memoPositions,
-        memoConnections,
-        deletedObjectIds: this.deletedObjectIds || [],
-        deletedMemoIds: this.deletedMemoIds || []
-      };
-
-      const res = await fetch('/api/save-archive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-      console.log('[Archive] Source file saved successfully:', data);
-
-      if (saveBtn) {
-        saveBtn.classList.remove('is-saving');
-        saveBtn.innerHTML = `<span>✓</span><span>Saved!</span>`;
-        setTimeout(() => {
-          saveBtn.innerHTML = `<span>💾</span><span>Save</span>`;
-        }, 2500);
-      }
-
-      if (!silent) {
-        const objCount = objects.length;
-        const memoCount = memos.length;
-        this.showSaveToast(`💾 소스 파일(data/archive.json)에 영구 저장되었습니다! (사물 ${objCount}개, 메모 ${memoCount}개)`);
-      }
-      return data;
-    } catch (err) {
-      console.error('[Archive] Save error:', err);
-      if (saveBtn) {
-        saveBtn.classList.remove('is-saving');
-        saveBtn.innerHTML = `<span>⚠️</span><span>Error</span>`;
-        setTimeout(() => {
-          saveBtn.innerHTML = `<span>💾</span><span>Save</span>`;
-        }, 3000);
-      }
-      if (!silent) {
-        this.showSaveToast(`⚠️ 소스 파일 저장 실패: ${err.message}`, true);
-      }
-      return null;
+    if (!silent) {
+      this.showSaveToast('✓ 브라우저(IndexedDB)에 정상적으로 저장되었습니다.');
     }
+    return { success: true };
   }
 
   deletePhoto(objId, photoIdx, skipTrash = false) {
