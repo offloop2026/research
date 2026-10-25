@@ -13,11 +13,13 @@
 }(typeof self !== 'undefined' ? self : this, function () {
 
   const DB_NAME = 'ArchiveOfMatterDB';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const STORE_RESEARCH = 'field_research';
   const STORE_MEDIA = 'media_store';
+  const STORE_ARCHIVE = 'archive_state';
   const LS_RESEARCH_KEY = 'archive_field_research_v1';
   const LS_MIGRATED_KEY = 'archive_fr_migrated_to_idb';
+  const LS_CUSTOM_KEY = 'archive_user_custom_v3';
 
   const isSupported = (typeof window !== 'undefined' && 'indexedDB' in window && window.indexedDB !== null);
 
@@ -49,6 +51,10 @@
           const mediaStore = db.createObjectStore(STORE_MEDIA, { keyPath: 'id' });
           mediaStore.createIndex('mimeType', 'mimeType', { unique: false });
           mediaStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+        // 3. Complete Archive State Store (Objects, Memos, Layout)
+        if (!db.objectStoreNames.contains(STORE_ARCHIVE)) {
+          db.createObjectStore(STORE_ARCHIVE);
         }
       };
 
@@ -474,6 +480,116 @@
     }
   }
 
+  /**
+   * Synchronously get live Object URL if already hydrated for a media ID
+   */
+  function getMediaUrl(id) {
+    if (!id || typeof id !== 'string') return '';
+    return activeObjectUrls.get(id) || '';
+  }
+
+  /**
+   * Retrieve all Media Blob records (photos, videos) from STORE_MEDIA
+   */
+  async function getAllMediaBlobs() {
+    if (!isSupported) return [];
+    try {
+      const db = await getDB();
+      const tx = db.transaction(STORE_MEDIA, 'readonly');
+      const store = tx.objectStore(STORE_MEDIA);
+      const records = await promisifyRequest(store.getAll());
+      if (!Array.isArray(records)) return [];
+      const result = [];
+      for (const rec of records) {
+        if (!rec || !rec.blob) continue;
+        let url = activeObjectUrls.get(rec.id);
+        if (!url && typeof URL !== 'undefined' && URL.createObjectURL) {
+          url = URL.createObjectURL(rec.blob);
+          activeObjectUrls.set(rec.id, url);
+        }
+        result.push({
+          id: rec.id,
+          url,
+          mimeType: rec.mimeType,
+          name: rec.name,
+          createdAt: rec.createdAt
+        });
+      }
+      return result;
+    } catch (e) {
+      console.warn('[idbStorage] getAllMediaBlobs error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Save complete Archive state (objects, memos, positions, connections) to IndexedDB
+   * @param {Object} state
+   * @returns {Promise<Object>}
+   */
+  async function saveArchiveState(state) {
+    if (!state) return null;
+    const cleanState = JSON.parse(JSON.stringify(state));
+    cleanState.updatedAt = cleanState.updatedAt || new Date().toISOString();
+
+    if (!isSupported) {
+      memoryStore.set('main_archive', cleanState);
+      return cleanState;
+    }
+
+    const db = await getDB();
+    const tx = db.transaction(STORE_ARCHIVE, 'readwrite');
+    const store = tx.objectStore(STORE_ARCHIVE);
+    store.put(cleanState, 'main_archive');
+    await promisifyTx(tx);
+    return cleanState;
+  }
+
+  /**
+   * Retrieve complete Archive state from IndexedDB
+   * @returns {Promise<Object|null>}
+   */
+  async function getArchiveState() {
+    if (!isSupported) {
+      return memoryStore.get('main_archive') || null;
+    }
+
+    try {
+      const db = await getDB();
+      if (!db.objectStoreNames.contains(STORE_ARCHIVE)) return null;
+
+      const tx = db.transaction(STORE_ARCHIVE, 'readonly');
+      const store = tx.objectStore(STORE_ARCHIVE);
+      const state = await promisifyRequest(store.get('main_archive'));
+      if (state && Array.isArray(state.objects) && state.objects.length > 0) {
+        return state;
+      }
+      return null;
+    } catch (e) {
+      console.warn('[idbStorage] getArchiveState error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Clear Archive state from IndexedDB
+   */
+  async function clearArchiveState() {
+    if (!isSupported) {
+      memoryStore.delete('main_archive');
+      return;
+    }
+    try {
+      const db = await getDB();
+      if (!db.objectStoreNames.contains(STORE_ARCHIVE)) return;
+      const tx = db.transaction(STORE_ARCHIVE, 'readwrite');
+      tx.objectStore(STORE_ARCHIVE).delete('main_archive');
+      await promisifyTx(tx);
+    } catch (e) {
+      console.warn('[idbStorage] clearArchiveState error:', e);
+    }
+  }
+
   // Public API
   return {
     isSupported,
@@ -485,6 +601,11 @@
     saveMediaBlob,
     getMediaBlob,
     deleteMediaBlob,
+    getAllMediaBlobs,
+    getMediaUrl,
+    saveArchiveState,
+    getArchiveState,
+    clearArchiveState,
     dataUrlToBlob,
     hydrateEntryMedia,
     migrateFromLocalStorage

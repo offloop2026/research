@@ -105,6 +105,17 @@
 
     const payload = getArchiveSnapshot();
 
+    // Explicitly guarantee IndexedDB persistence
+    const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+    if (idb && idb.isSupported && typeof idb.saveArchiveState === 'function') {
+      try {
+        await idb.saveArchiveState(payload);
+        console.log('[Save] Archive snapshot saved to IndexedDB.');
+      } catch (e) {
+        console.warn('[Save] IndexedDB snapshot error:', e);
+      }
+    }
+
     // 1. Static Hosting (GitHub Pages / file:) Mode
     if (isStaticHosting()) {
       console.log('[Save] GitHub Pages environment detected. Data preserved in IndexedDB / localStorage.');

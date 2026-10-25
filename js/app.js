@@ -26,12 +26,32 @@ function escapeHtml(str) {
  * and local servers by ensuring relative paths (./) and preventing 404s.
  */
 function resolveImagePath(url) {
-  if (!url || typeof url !== 'string') return './assets/images/obj-001-1.svg';
+  if (!url) return './assets/images/obj-001-1.svg';
+
+  // Handle raw File / Blob instances
+  if (typeof URL !== 'undefined' && (url instanceof Blob || (typeof File !== 'undefined' && url instanceof File))) {
+    try {
+      return URL.createObjectURL(url);
+    } catch (e) {
+      return './assets/images/obj-001-1.svg';
+    }
+  }
+
+  if (typeof url !== 'string') return './assets/images/obj-001-1.svg';
   const trimmed = url.trim();
   if (!trimmed) return './assets/images/obj-001-1.svg';
+
+  // Live Object URLs, Data URLs, or absolute HTTP/HTTPS
   if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || /^https?:\/\//i.test(trimmed)) {
     return trimmed;
   }
+
+  // IndexedDB media ID lookup
+  if (trimmed.startsWith('media-') && typeof window !== 'undefined' && window.idbStorage && typeof window.idbStorage.getMediaUrl === 'function') {
+    const liveUrl = window.idbStorage.getMediaUrl(trimmed);
+    if (liveUrl) return liveUrl;
+  }
+
   let clean = trimmed;
   if (clean.startsWith('/research/')) {
     clean = clean.slice('/research/'.length);
@@ -370,93 +390,140 @@ class ArchiveApp {
   }
 
   async loadData() {
-    // 0. Initialize from reliable baseline
+    // 0. Initialize from reliable baseline as default in-memory safety
     this.data.objects = JSON.parse(JSON.stringify(DEFAULT_BASELINE.objects));
     this.data.memos = JSON.parse(JSON.stringify(DEFAULT_BASELINE.memos));
 
-    try {
-      // 1. Fetch remote baseline if available
-      const res = await fetch('./data/archive.json');
-      if (res.ok) {
-        const base = await res.json();
-        if (base && Array.isArray(base.objects) && base.objects.length > 0) {
-          this.data.objects = base.objects;
+    const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+    let loadedFromIDB = false;
+
+    // 1. PRIMARY: Load Archive State from browser IndexedDB
+    if (idb && (idb.isSupported || typeof idb.getArchiveState === 'function')) {
+      try {
+        const idbState = await idb.getArchiveState();
+        if (idbState && Array.isArray(idbState.objects) && idbState.objects.length > 0) {
+          this.data.objects = idbState.objects;
+          this.data.memos = Array.isArray(idbState.memos) ? idbState.memos : [];
+          this.deletedObjectIds = Array.isArray(idbState.deletedObjectIds) ? idbState.deletedObjectIds : [];
+          this.deletedMemoIds = Array.isArray(idbState.deletedMemoIds) ? idbState.deletedMemoIds : [];
+
+          // Restore memo positions and connections to localStorage if present in state
+          if (idbState.memoPositions) {
+            try { localStorage.setItem('archive_memo_positions_v1', JSON.stringify(idbState.memoPositions)); } catch (e) {}
+          }
+          if (idbState.memoConnections) {
+            try { localStorage.setItem('archive_memo_connections_v1', JSON.stringify(idbState.memoConnections)); } catch (e) {}
+          }
+          if (idbState.constellationPositions) {
+            try { localStorage.setItem('archive_constellation_positions_v1', JSON.stringify(idbState.constellationPositions)); } catch (e) {}
+          }
+          if (idbState.constellationConnections) {
+            try { localStorage.setItem('archive_constellation_connections_v1', JSON.stringify(idbState.constellationConnections)); } catch (e) {}
+          }
+
+          loadedFromIDB = true;
+          console.log('[Archive] Loaded latest archive from IndexedDB. Objects:', this.data.objects.length, 'Memos:', this.data.memos.length);
         }
-        if (base && Array.isArray(base.memos)) {
-          this.data.memos = base.memos;
-        }
-        if (base && Array.isArray(base.fieldResearch) && base.fieldResearch.length > 0) {
-          this.data.fieldResearch = base.fieldResearch;
-        }
-        if (base && base.memoPositions) {
-          try {
-            if (!localStorage.getItem('archive_memo_positions_v1')) {
-              localStorage.setItem('archive_memo_positions_v1', JSON.stringify(base.memoPositions));
-            }
-          } catch (e) {}
-        }
-        if (base && base.memoConnections) {
-          try {
-            if (!localStorage.getItem('archive_memo_connections_v1')) {
-              localStorage.setItem('archive_memo_connections_v1', JSON.stringify(base.memoConnections));
-            }
-          } catch (e) {}
-        }
+      } catch (e) {
+        console.warn('[Archive] Error reading from IndexedDB:', e);
       }
-    } catch (e) {
-      console.warn('[Archive] Offline / fallback baseline in use:', e);
     }
 
-    try {
-      // 2. Merge local custom additions if any exist
-      const customStr = localStorage.getItem(LOCAL_OVERRIDE_KEY);
-      if (customStr) {
-        const custom = JSON.parse(customStr);
-        this.deletedMemoIds = custom.deletedMemoIds || [];
-        this.deletedObjectIds = custom.deletedObjectIds || [];
+    // 2. SECONDARY: Check legacy localStorage if IndexedDB had no saved archive
+    if (!loadedFromIDB) {
+      try {
+        const customStr = localStorage.getItem(LOCAL_OVERRIDE_KEY);
+        if (customStr) {
+          const custom = JSON.parse(customStr);
+          if (custom && Array.isArray(custom.objects) && custom.objects.length > 0) {
+            this.deletedMemoIds = custom.deletedMemoIds || [];
+            this.deletedObjectIds = custom.deletedObjectIds || [];
+            this.data.objects = custom.objects;
+            this.data.memos = custom.memos || [];
+            loadedFromIDB = true;
 
-        // Filter out any baseline items that were explicitly deleted by the user
-        if (this.deletedMemoIds.length) {
-          this.data.memos = this.data.memos.filter(m => !this.deletedMemoIds.includes(m.id));
-        }
-        if (this.deletedObjectIds.length) {
-          this.data.objects = this.data.objects.filter(o => !this.deletedObjectIds.includes(o.id));
-        }
+            // Automatically migrate legacy localStorage into IndexedDB
+            if (idb && idb.isSupported) {
+              let memoPos = {};
+              let memoConns = [];
+              try { memoPos = JSON.parse(localStorage.getItem('archive_memo_positions_v1') || '{}'); } catch(e){}
+              try { memoConns = JSON.parse(localStorage.getItem('archive_memo_connections_v1') || '[]'); } catch(e){}
 
-        if (custom.objects && custom.objects.length) {
-          custom.objects.forEach(cObj => {
-            if (this.deletedObjectIds.includes(cObj.id)) return;
-            const idx = this.data.objects.findIndex(o => o.id === cObj.id);
-            if (idx >= 0) this.data.objects[idx] = cObj;
-            else this.data.objects.unshift(cObj);
-          });
+              idb.saveArchiveState({
+                objects: this.data.objects,
+                memos: this.data.memos,
+                deletedObjectIds: this.deletedObjectIds,
+                deletedMemoIds: this.deletedMemoIds,
+                memoPositions: memoPos,
+                memoConnections: memoConns,
+                updatedAt: new Date().toISOString()
+              }).catch(e => console.warn('[Archive] Migration save error:', e));
+              console.log('[Archive] Migrated legacy localStorage archive to IndexedDB.');
+            }
+          }
         }
-        if (custom.memos && custom.memos.length) {
-          custom.memos.forEach(cMemo => {
-            if (this.deletedMemoIds.includes(cMemo.id)) return;
-            const idx = this.data.memos.findIndex(m => m.id === cMemo.id);
-            if (idx >= 0) this.data.memos[idx] = cMemo;
-            else this.data.memos.unshift(cMemo);
-          });
-        }
-      } else {
-        this.deletedMemoIds = [];
-        this.deletedObjectIds = [];
+      } catch (e) {
+        console.warn('[Archive] Legacy localStorage read warning:', e);
       }
-    } catch (e) {
-      console.error('[Archive] Data merge error:', e);
     }
 
+    // 3. FALLBACK: Only fetch remote data/archive.json if neither IndexedDB nor localStorage had custom data
+    if (!loadedFromIDB) {
+      try {
+        const res = await fetch('./data/archive.json');
+        if (res.ok) {
+          const base = await res.json();
+          if (base && Array.isArray(base.objects) && base.objects.length > 0) {
+            this.data.objects = base.objects;
+          }
+          if (base && Array.isArray(base.memos)) {
+            this.data.memos = base.memos;
+          }
+          if (base && Array.isArray(base.fieldResearch) && base.fieldResearch.length > 0) {
+            this.data.fieldResearch = base.fieldResearch;
+          }
+          if (base && base.memoPositions) {
+            try {
+              if (!localStorage.getItem('archive_memo_positions_v1')) {
+                localStorage.setItem('archive_memo_positions_v1', JSON.stringify(base.memoPositions));
+              }
+            } catch (e) {}
+          }
+          if (base && base.memoConnections) {
+            try {
+              if (!localStorage.getItem('archive_memo_connections_v1')) {
+                localStorage.setItem('archive_memo_connections_v1', JSON.stringify(base.memoConnections));
+              }
+            } catch (e) {}
+          }
+
+          // Seed IndexedDB with initial baseline so future updates and offline mode use IndexedDB
+          if (idb && idb.isSupported) {
+            idb.saveArchiveState({
+              objects: this.data.objects,
+              memos: this.data.memos,
+              deletedObjectIds: [],
+              deletedMemoIds: [],
+              memoPositions: base.memoPositions || {},
+              memoConnections: base.memoConnections || [],
+              updatedAt: new Date().toISOString()
+            }).catch(e => console.warn('[Archive] Baseline seed error:', e));
+            console.log('[Archive] Seeded initial archive baseline into IndexedDB.');
+          }
+        }
+      } catch (e) {
+        console.warn('[Archive] Offline / fallback baseline in use:', e);
+      }
+    }
+
+    // 4. Load Field Research from IndexedDB
     try {
-      // 3. Load Field Research from IndexedDB (with migration from localStorage if needed)
-      const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
       if (idb && idb.isSupported) {
         await idb.migrateFromLocalStorage();
         const idbList = await idb.getAllResearch();
         if (idbList && idbList.length > 0) {
           this.data.fieldResearch = idbList;
         } else if (this.data.fieldResearch && this.data.fieldResearch.length > 0) {
-          // Seed IndexedDB with baseline if empty
           for (const item of this.data.fieldResearch) {
             await idb.saveResearch(item);
           }
@@ -468,16 +535,50 @@ class ArchiveApp {
   }
 
   persistCustom() {
+    let memoPositions = {};
+    let memoConnections = [];
+    let constellationPositions = {};
+    let constellationConnections = [];
+
+    try { memoPositions = JSON.parse(localStorage.getItem('archive_memo_positions_v1') || '{}'); } catch (e) {}
+    try { memoConnections = JSON.parse(localStorage.getItem('archive_memo_connections_v1') || '[]'); } catch (e) {}
+    try { constellationPositions = JSON.parse(localStorage.getItem('archive_constellation_positions_v1') || '{}'); } catch (e) {}
+    try { constellationConnections = JSON.parse(localStorage.getItem('archive_constellation_connections_v1') || '[]'); } catch (e) {}
+
+    const payload = {
+      objects: this.data.objects,
+      memos: this.data.memos,
+      deletedMemoIds: this.deletedMemoIds || [],
+      deletedObjectIds: this.deletedObjectIds || [],
+      memoPositions,
+      memoConnections,
+      constellationPositions,
+      constellationConnections,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Primary: IndexedDB
+    const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+    if (idb && (idb.isSupported || typeof idb.saveArchiveState === 'function')) {
+      return idb.saveArchiveState(payload).then(() => {
+        console.log('[Archive] Persisted latest state to IndexedDB.');
+        return payload;
+      }).catch(err => {
+        console.warn('[Archive] IndexedDB persist error:', err);
+        return payload;
+      });
+    }
+
+    // Secondary fallback: localStorage (silent on quota error)
     try {
-      const payload = {
+      localStorage.setItem(LOCAL_OVERRIDE_KEY, JSON.stringify({
         objects: this.data.objects,
         memos: this.data.memos,
         deletedMemoIds: this.deletedMemoIds || [],
         deletedObjectIds: this.deletedObjectIds || []
-      };
-      localStorage.setItem(LOCAL_OVERRIDE_KEY, JSON.stringify(payload));
+      }));
     } catch (e) {
-      console.warn('[Archive] Storage warning:', e);
+      // Ignored: IndexedDB is our primary persistent store
     }
   }
 
