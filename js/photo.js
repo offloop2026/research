@@ -149,7 +149,7 @@ function renderPhoto3Col() {
           ${displayedPhotos.map((item, idx) => `
             <article class="editorial-photo-entry" data-index="${idx}">
               <div class="editorial-photo-frame" data-src="${item.src}" title="클릭하여 확대">
-                <img src="${item.src}" alt="${escapeHtml(item.obj.title)}" class="editorial-photo-img" loading="lazy" />
+                <img src="${window.resolveImagePath ? window.resolveImagePath(item.src) : item.src}" alt="${escapeHtml(item.obj.title)}" class="editorial-photo-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
               </div>
 
               <div class="editorial-photo-caption">

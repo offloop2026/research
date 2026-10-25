@@ -20,17 +20,44 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+/**
+ * Universal Image Path Normalizer:
+ * Resolves images correctly on GitHub Pages subpaths (e.g. /research/)
+ * and local servers by ensuring relative paths (./) and preventing 404s.
+ */
+function resolveImagePath(url) {
+  if (!url || typeof url !== 'string') return './assets/images/obj-001-1.svg';
+  const trimmed = url.trim();
+  if (!trimmed) return './assets/images/obj-001-1.svg';
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  let clean = trimmed;
+  if (clean.startsWith('/research/')) {
+    clean = clean.slice('/research/'.length);
+  } else if (clean.startsWith('research/')) {
+    clean = clean.slice('research/'.length);
+  }
+  if (clean.startsWith('/')) {
+    clean = '.' + clean;
+  } else if (!clean.startsWith('./') && !clean.startsWith('../')) {
+    clean = './' + clean;
+  }
+  return clean;
+}
+window.resolveImagePath = resolveImagePath;
+
 const DEFAULT_BASELINE = {
   objects: [
     {
       id: "obj-001",
       title: "타이머 메커니즘",
       images: [
-        "assets/images/obj-001-1.svg",
-        "assets/images/obj-001-2.svg",
-        "assets/images/obj-001-3.svg"
+        "./assets/images/obj-001-1.svg",
+        "./assets/images/obj-001-2.svg",
+        "./assets/images/obj-001-3.svg"
       ],
-      representativeImage: "assets/images/obj-001-1.svg",
+      representativeImage: "./assets/images/obj-001-1.svg",
       timestamp: "2026.09.17 10:30",
       materials: "황동, 탄소강, 루비 베어링",
       dimensions: "Ø 52mm × 14mm",
@@ -41,10 +68,10 @@ const DEFAULT_BASELINE = {
       id: "obj-002",
       title: "다이내믹 트랜스듀서",
       images: [
-        "assets/images/obj-002-1.svg",
-        "assets/images/obj-002-2.svg"
+        "./assets/images/obj-002-1.svg",
+        "./assets/images/obj-002-2.svg"
       ],
-      representativeImage: "assets/images/obj-002-1.svg",
+      representativeImage: "./assets/images/obj-002-1.svg",
       timestamp: "2026.09.17 14:15",
       materials: "알루미늄 하우징, 네오디뮴 자석, 마일러 진동판",
       dimensions: "38mm × 38mm × 19mm",
@@ -55,10 +82,10 @@ const DEFAULT_BASELINE = {
       id: "obj-003",
       title: "리프 셔터 어셈블리",
       images: [
-        "assets/images/obj-003-1.svg",
-        "assets/images/obj-003-2.svg"
+        "./assets/images/obj-003-1.svg",
+        "./assets/images/obj-003-2.svg"
       ],
-      representativeImage: "assets/images/obj-003-1.svg",
+      representativeImage: "./assets/images/obj-003-1.svg",
       timestamp: "2026.09.15 11:00",
       materials: "흑색 산화 피막 강철 날개 5매, 황동 구동 링",
       dimensions: "Ø 44mm × 8mm",
@@ -69,9 +96,9 @@ const DEFAULT_BASELINE = {
       id: "obj-004",
       title: "카본 마이크로폰 캡슐",
       images: [
-        "assets/images/obj-004-1.svg"
+        "./assets/images/obj-004-1.svg"
       ],
-      representativeImage: "assets/images/obj-004-1.svg",
+      representativeImage: "./assets/images/obj-004-1.svg",
       timestamp: "2026.09.12 16:40",
       materials: "베이클라이트 외장, 탄소 과립실, 황동 전극판",
       dimensions: "Ø 48mm × 26mm",
@@ -129,7 +156,7 @@ const DEFAULT_RESEARCH = [
       {
         id: "blk-2",
         type: "image-caption",
-        image: "assets/images/obj-001-1.svg",
+        image: "./assets/images/obj-001-1.svg",
         caption: "을지로 3가 골목 작업대에서 관찰한 탈진기 황동 기어의 맞물림 흔적."
       },
       {
@@ -140,7 +167,7 @@ const DEFAULT_RESEARCH = [
       {
         id: "blk-4",
         type: "image",
-        image: "assets/images/obj-001-2.svg"
+        image: "./assets/images/obj-001-2.svg"
       },
       {
         id: "blk-5",
@@ -166,13 +193,13 @@ const DEFAULT_RESEARCH = [
       {
         id: "blk-2",
         type: "image-caption",
-        image: "assets/images/obj-002-1.svg",
+        image: "./assets/images/obj-002-1.svg",
         caption: "네오디뮴 마그넷 중심부에 장착된 극박 마일러 필름 진동판."
       },
       {
         id: "blk-3",
         type: "text",
-        text: "보이지 않는 공기의 파동을 물리적 전류로 바꾸는 과정은 극도로 얇은 진동판의 떨림에서 시작된다. 미세한 먼지 하나가 음색의 왜곡을 일으킨다는 설명에서 물리적 사물의 예민함을 실감했다."
+        text: "보이지 않는 공기의 파동을 물리적 전류로 바꾸는 과정은 극도로얇은 진동판의 떨림에서 시작된다. 미세한 먼지 하나가 음색의 왜곡을 일으킨다는 설명에서 물리적 사물의 예민함을 실감했다."
       }
     ]
   }
@@ -332,7 +359,7 @@ class ArchiveApp {
 
     try {
       // 1. Fetch remote baseline if available
-      const res = await fetch('data/archive.json');
+      const res = await fetch('./data/archive.json');
       if (res.ok) {
         const base = await res.json();
         if (base && Array.isArray(base.objects) && base.objects.length > 0) {
@@ -420,7 +447,16 @@ class ArchiveApp {
 
   // --- OBJECTS ---
   getObjects() {
-    return this.data.objects || [];
+    const list = this.data.objects || [];
+    list.forEach(obj => {
+      if (obj.representativeImage) {
+        obj.representativeImage = resolveImagePath(obj.representativeImage);
+      }
+      if (obj.images && Array.isArray(obj.images)) {
+        obj.images = obj.images.map(img => resolveImagePath(img));
+      }
+    });
+    return list;
   }
 
   getAllObjects() {
@@ -433,19 +469,32 @@ class ArchiveApp {
 
   // --- FIELD RESEARCH ---
   getResearchList() {
+    let result = [];
     try {
       const raw = localStorage.getItem(FIELD_RESEARCH_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) result = parsed;
       }
     } catch (e) {
       console.warn('[Field Research] Read warning:', e);
     }
-    if (this.data && Array.isArray(this.data.fieldResearch) && this.data.fieldResearch.length > 0) {
-      return JSON.parse(JSON.stringify(this.data.fieldResearch));
+    if (!result.length && this.data && Array.isArray(this.data.fieldResearch) && this.data.fieldResearch.length > 0) {
+      result = JSON.parse(JSON.stringify(this.data.fieldResearch));
     }
-    return JSON.parse(JSON.stringify(DEFAULT_RESEARCH));
+    if (!result.length) {
+      result = JSON.parse(JSON.stringify(DEFAULT_RESEARCH));
+    }
+    result.forEach(entry => {
+      if (entry && entry.blocks && Array.isArray(entry.blocks)) {
+        entry.blocks.forEach(blk => {
+          if (blk && blk.image) {
+            blk.image = resolveImagePath(blk.image);
+          }
+        });
+      }
+    });
+    return result;
   }
 
   saveResearch(entry) {
@@ -459,6 +508,14 @@ class ArchiveApp {
       const num = String(maxNum + 1).padStart(3, '0');
       entry.id = `res-${num}`;
       entry.numStr = String(maxNum + 1).padStart(2, '0');
+    }
+
+    if (entry.blocks && Array.isArray(entry.blocks)) {
+      entry.blocks.forEach(blk => {
+        if (blk && blk.image) {
+          blk.image = resolveImagePath(blk.image);
+        }
+      });
     }
 
     const idx = list.findIndex(r => r.id === entry.id);
@@ -1208,7 +1265,7 @@ class ArchiveApp {
       const checkedConns = Array.from(document.querySelectorAll('#reg-constellation-checks input[type="checkbox"]:checked'))
                                .map(cb => cb.value);
 
-      const images = this.regImages.length > 0 ? this.regImages : ['assets/images/obj-001-1.svg'];
+      const images = this.regImages.length > 0 ? this.regImages : ['./assets/images/obj-001-1.svg'];
       const representativeImage = images[this.regRepIndex] || images[0];
 
       const newObj = {
@@ -1357,7 +1414,7 @@ class ArchiveApp {
     const counterEl = document.getElementById('lb-counter');
     const src = this.lightbox.images[this.lightbox.currentIndex];
 
-    imgEl.src = src;
+    imgEl.src = resolveImagePath(src);
     counterEl.textContent = `${this.lightbox.currentIndex + 1} / ${this.lightbox.images.length}`;
   }
 

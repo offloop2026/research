@@ -410,7 +410,7 @@ function renderArchiveView() {
                   <div class="editorial-frame-border">
                     <div class="editorial-frame-inner">
                       ${repImg ? `
-                        <img src="${repImg}" alt="${escapeHtml(obj.title)}" class="editorial-framed-img" loading="lazy" />
+                        <img src="${window.resolveImagePath ? window.resolveImagePath(repImg) : repImg}" alt="${escapeHtml(obj.title)}" class="editorial-framed-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
                       ` : `
                         <div class="cargo-placeholder-canvas">
                           <svg class="cargo-placeholder-diagonal" preserveAspectRatio="none" viewBox="0 0 100 100">
@@ -459,7 +459,7 @@ function renderArchiveView() {
   // -------------------------------------------------------------------------
   const detailImages = (selectedObj.images && selectedObj.images.length)
     ? selectedObj.images
-    : (selectedObj.representativeImage ? [selectedObj.representativeImage] : ['assets/images/obj-001-1.svg']);
+    : (selectedObj.representativeImage ? [selectedObj.representativeImage] : ['./assets/images/obj-001-1.svg']);
 
   const objectMemos = window.app.getMemosForObject(selectedObj.id);
   const allPhotoSrcs = detailImages;
@@ -497,7 +497,7 @@ function renderArchiveView() {
                 </div>
                 <div class="cms-input-group">
                   <label class="cms-input-label mono">또는 이미지 URL</label>
-                  <input type="text" id="col2-new-photo-url" class="cms-text-input" placeholder="assets/images/... 또는 https://..." />
+                  <input type="text" id="col2-new-photo-url" class="cms-text-input" placeholder="./assets/images/... 또는 https://..." />
                 </div>
                 <div class="cms-input-group mono" style="display:flex; align-items:center; gap:8px; margin-top:4px;">
                   <input type="checkbox" id="col2-photo-set-rep" />
@@ -524,7 +524,7 @@ function renderArchiveView() {
                   <div class="editorial-frame-border">
                     <div class="editorial-frame-inner">
                       ${src ? `
-                        <img src="${src}" alt="${escapeHtml(selectedObj.title)}" class="editorial-framed-img" loading="lazy" />
+                        <img src="${window.resolveImagePath ? window.resolveImagePath(src) : src}" alt="${escapeHtml(selectedObj.title)}" class="editorial-framed-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
                       ` : `
                         <div class="cargo-placeholder-canvas">
                           <svg class="cargo-placeholder-diagonal" preserveAspectRatio="none" viewBox="0 0 100 100">
@@ -1571,7 +1571,7 @@ function bindArchiveEvents(container, sorted, selectedObj, allPhotoSrcs) {
       const urlInput = (document.getElementById('col2-new-photo-url').value || '').trim();
       const setAsRep = document.getElementById('col2-photo-set-rep') ? document.getElementById('col2-photo-set-rep').checked : false;
 
-      let imgSrc = urlInput || null;
+      let imgSrc = urlInput ? (window.resolveImagePath ? window.resolveImagePath(urlInput) : urlInput) : null;
       if (fileInput && fileInput.files && fileInput.files[0]) {
         try {
           imgSrc = await window.app.compressImageFile(fileInput.files[0]);

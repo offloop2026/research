@@ -9,6 +9,8 @@
  * - Storage key: archive_field_research_v1
  */
 
+const resolvePath = (url) => (window.resolveImagePath ? window.resolveImagePath(url) : (url && url.startsWith('/') ? '.' + url : (url && !url.startsWith('./') && !url.startsWith('http') && !url.startsWith('data:') ? './' + url : (url || './assets/images/obj-001-1.svg'))));
+
 let editingResearchId = null;
 let editDraft = null;
 
@@ -256,12 +258,13 @@ function renderContentBlock(blk) {
   }
 
   if (blk.type === 'image') {
+    const src = resolvePath(blk.image);
     return `
       <div class="research-block research-block-image">
         <div class="editorial-frame-outer">
           <div class="editorial-frame-border">
             <div class="editorial-frame-inner">
-              <img src="${blk.image || 'assets/images/obj-001-1.svg'}" alt="현장 조사 사진" class="editorial-framed-img" loading="lazy" />
+              <img src="${src}" alt="현장 조사 사진" class="editorial-framed-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
             </div>
           </div>
         </div>
@@ -270,12 +273,13 @@ function renderContentBlock(blk) {
   }
 
   if (blk.type === 'image-caption') {
+    const src = resolvePath(blk.image);
     return `
       <div class="research-block research-block-image-caption">
         <div class="editorial-frame-outer">
           <div class="editorial-frame-border">
             <div class="editorial-frame-inner">
-              <img src="${blk.image || 'assets/images/obj-001-1.svg'}" alt="현장 조사 사진" class="editorial-framed-img" loading="lazy" />
+              <img src="${src}" alt="현장 조사 사진" class="editorial-framed-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
             </div>
           </div>
         </div>
@@ -385,13 +389,13 @@ function renderBlockEditorItem(blk, bIdx, totalBlocks) {
       <div class="block-field-body">
         <div class="block-image-edit-wrap">
           <div class="block-image-preview-box">
-            <img src="${blk.image || 'assets/images/obj-001-1.svg'}" class="block-img-preview" id="preview-img-${bIdx}" />
+            <img src="${resolvePath(blk.image)}" class="block-img-preview" id="preview-img-${bIdx}" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
           </div>
           <div class="block-image-inputs">
             <label class="mono" style="font-size:11px; display:block; margin-bottom:4px;">Upload File:</label>
             <input type="file" accept="image/*" class="block-file-input mono" data-bidx="${bIdx}" />
             <label class="mono" style="font-size:11px; display:block; margin:6px 0 4px 0;">Or Image URL / Path:</label>
-            <input type="text" class="block-url-input mono" data-bidx="${bIdx}" value="${escapeHtml(blk.image || '')}" placeholder="assets/images/... or https://..." />
+            <input type="text" class="block-url-input mono" data-bidx="${bIdx}" value="${escapeHtml(blk.image || '')}" placeholder="./assets/images/... or https://..." />
           </div>
         </div>
         ${blk.type === 'image-caption' ? `
@@ -442,7 +446,10 @@ function bindEditorEvents(container) {
     });
     container.querySelectorAll('.block-url-input').forEach(inp => {
       const idx = parseInt(inp.getAttribute('data-bidx'), 10);
-      if (editDraft.blocks[idx]) editDraft.blocks[idx].image = inp.value.trim();
+      if (editDraft.blocks[idx]) {
+        const val = inp.value.trim();
+        editDraft.blocks[idx].image = val ? resolvePath(val) : '';
+      }
     });
     container.querySelectorAll('.block-caption-input').forEach(inp => {
       const idx = parseInt(inp.getAttribute('data-bidx'), 10);
@@ -497,7 +504,7 @@ function bindEditorEvents(container) {
     editDraft.blocks.push({
       id: `blk-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type: 'image',
-      image: 'assets/images/obj-001-1.svg'
+      image: './assets/images/obj-001-1.svg'
     });
     renderFieldResearchView();
   });
@@ -508,7 +515,7 @@ function bindEditorEvents(container) {
     editDraft.blocks.push({
       id: `blk-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       type: 'image-caption',
-      image: 'assets/images/obj-001-1.svg',
+      image: './assets/images/obj-001-1.svg',
       caption: ''
     });
     renderFieldResearchView();
@@ -580,7 +587,7 @@ function bindEditorEvents(container) {
     urlInp.addEventListener('input', () => {
       const bIdx = parseInt(urlInp.getAttribute('data-bidx'), 10);
       const prevImg = document.getElementById(`preview-img-${bIdx}`);
-      if (prevImg) prevImg.src = urlInp.value.trim();
+      if (prevImg) prevImg.src = resolvePath(urlInp.value.trim());
     });
   });
 }

@@ -325,7 +325,7 @@ function renderConstellationBoard() {
         <div class="constellation-nodes-container" id="constellation-nodes-container">
           ${placedObjects.map((obj, idx) => {
             const pos = getObjectPosition(obj.id, idx);
-            const repImg = obj.representativeImage || (obj.images && obj.images[0]) || 'assets/images/obj-001-1.svg';
+            const repImg = (window.resolveImagePath ? window.resolveImagePath(obj.representativeImage || (obj.images && obj.images[0])) : null) || './assets/images/obj-001-1.svg';
 
             return `
               <div class="constellation-object-node" id="c-node-${obj.id}" data-id="${obj.id}" style="left: ${pos.x}px; top: ${pos.y}px;">
@@ -347,7 +347,7 @@ function renderConstellationBoard() {
                 <!-- Node Body (Image) -->
                 <div class="c-node-body">
                   <a href="index.html?id=${obj.id}" class="c-node-img-link" title="${escapeHtml(obj.title)}">
-                    <img src="${repImg}" alt="${escapeHtml(obj.title)}" class="c-node-img" loading="lazy" />
+                    <img src="${repImg}" alt="${escapeHtml(obj.title)}" class="c-node-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
                   </a>
                 </div>
 
