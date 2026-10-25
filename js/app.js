@@ -226,11 +226,27 @@ function toggleCmsEditMode() {
   return !current;
 }
 
-function compressImageFile(file, maxWidth = 1200, maxHeight = 1200, quality = 0.82) {
+function compressImageFile(file, maxWidth = 1200, maxHeight = 1200, quality = 0.80) {
   return new Promise((resolve, reject) => {
     if (!file) return reject(new Error('No file provided'));
+
+    // Directly preserve SVG without rasterization
+    if (file.type && file.type.includes('svg')) {
+      const reader = new FileReader();
+      reader.onerror = () => resolve(URL.createObjectURL(file));
+      reader.onload = (e) => resolve(e.target.result);
+      reader.readAsDataURL(file);
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onerror = reject;
+    reader.onerror = () => {
+      try {
+        resolve(URL.createObjectURL(file));
+      } catch (err) {
+        reject(err);
+      }
+    };
     reader.onload = (e) => {
       const img = new Image();
       img.onerror = () => resolve(e.target.result);
@@ -263,13 +279,14 @@ function compressImageFile(file, maxWidth = 1200, maxHeight = 1200, quality = 0.
         } catch (err) {
           dataUrl = canvas.toDataURL('image/jpeg', quality);
         }
-        resolve(dataUrl);
+        resolve(dataUrl || e.target.result);
       };
       img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   });
 }
+window.compressImageFile = compressImageFile;
 
 class ArchiveApp {
   constructor() {
@@ -525,10 +542,15 @@ class ArchiveApp {
       list.unshift(entry);
     }
 
+    this.data.fieldResearch = list;
+
     try {
       localStorage.setItem(FIELD_RESEARCH_KEY, JSON.stringify(list));
     } catch (e) {
       console.warn('[Field Research] Write warning:', e);
+      if (e.name === 'QuotaExceededError') {
+        alert('브라우저 로컬 저장소(localStorage) 용량이 초과되어 일부 변경사항이 브라우저 캐시에만 보관됩니다. 상단의 [💾 Save] 버튼을 눌러 소스 파일로 저장해 주세요.');
+      }
     }
 
     window.dispatchEvent(new CustomEvent('archive-updated', { detail: { type: 'field-research', id: entry.id } }));
@@ -545,6 +567,7 @@ class ArchiveApp {
     }
 
     list = list.filter(r => r.id !== id);
+    this.data.fieldResearch = list;
     try {
       localStorage.setItem(FIELD_RESEARCH_KEY, JSON.stringify(list));
     } catch (e) {

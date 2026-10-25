@@ -1675,6 +1675,7 @@
 
 .editor-add-block-toolbar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
   margin-bottom: 16px;

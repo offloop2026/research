@@ -74,6 +74,10 @@ function renderFieldResearchView() {
           <span class="col-header-meta mono" style="opacity:0.4;">${researchList.length}</span>
         </div>
         <div class="col-header-right">
+          <button type="button" class="col-header-edit-badge mono" id="btn-fr-quick-upload-photo" title="사진 파일 다중 선택 및 즉시 등록" style="background:#000; color:#FFF; font-weight:bold;">
+            [📷 + 사진 등록]
+          </button>
+          <input type="file" id="fr-global-photo-input" accept="image/*" multiple style="display:none;" />
           <button type="button" class="col-header-edit-badge ${editActive ? 'active' : ''} mono" id="btn-fr-toggle-edit" title="편집 모드 전환">
             ${editActive ? '[EDIT: ON]' : '[Edit]'}
           </button>
@@ -93,9 +97,12 @@ function renderFieldResearchView() {
     html += `
       <div class="research-empty-state" style="padding: 60px 0; text-align: center;">
         <p class="doc-empty-text">등록된 현장 조사 기록이 없습니다.</p>
-        ${editActive ? `
-          <button type="button" class="band-text-action mono" id="btn-empty-add-res" style="margin-top: 12px;">+ 새 현장 조사 작성</button>
-        ` : ''}
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
+          <button type="button" class="band-text-action mono" id="btn-empty-upload-photos" style="font-weight:bold;">📷 사진 바로 등록 (다중 선택)</button>
+          ${editActive ? `
+            <button type="button" class="band-text-action mono" id="btn-empty-add-res">+ 새 현장 조사 작성</button>
+          ` : ''}
+        </div>
       </div>
     `;
   } else {
@@ -128,6 +135,85 @@ function renderFieldResearchView() {
     }
   });
 
+  // Global Quick Photo Upload Handler (supports multiple photos, zero text required)
+  const handleGlobalPhotoSelect = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    try {
+      const compressFn = (window.app && typeof window.app.compressImageFile === 'function')
+        ? window.app.compressImageFile
+        : window.compressImageFile;
+
+      const compressedList = await Promise.all(files.map(f => compressFn(f)));
+
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const todayStr = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
+
+      // If editor is active, append directly to blocks
+      if (editingResearchId && editDraft) {
+        syncDraftMeta();
+        syncBlocks();
+        compressedList.forEach((dataUrl, i) => {
+          editDraft.blocks.push({
+            id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+            type: 'image',
+            image: dataUrl
+          });
+        });
+        renderFieldResearchView();
+        return;
+      }
+
+      // If not editing, create a new research entry containing all photos immediately
+      const currentList = (window.app && typeof window.app.getResearchList === 'function')
+        ? window.app.getResearchList()
+        : [];
+
+      const newEntry = {
+        id: `res-${Date.now()}`,
+        numStr: String(currentList.length + 1).padStart(2, '0'),
+        title: `현장 사진 기록 (${todayStr})`,
+        date: todayStr,
+        location: '',
+        relatedObjectId: '',
+        intro: '',
+        blocks: compressedList.map((dataUrl, i) => ({
+          id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+          type: 'image',
+          image: dataUrl
+        }))
+      };
+
+      const saved = window.app.saveResearch(newEntry);
+      if (window.triggerSourceSave) {
+        window.triggerSourceSave({ silent: true });
+      }
+
+      renderFieldResearchView();
+
+      setTimeout(() => {
+        const el = document.getElementById(saved.id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } catch (err) {
+      console.error('Photo registration failed:', err);
+      alert('사진 등록 처리 중 오류가 발생했습니다: ' + err.message);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const triggerGlobalPhotoUpload = () => {
+    const fileInp = document.getElementById('fr-global-photo-input');
+    if (fileInp) fileInp.click();
+  };
+
+  document.getElementById('btn-fr-quick-upload-photo')?.addEventListener('click', triggerGlobalPhotoUpload);
+  document.getElementById('btn-empty-upload-photos')?.addEventListener('click', triggerGlobalPhotoUpload);
+  document.getElementById('fr-global-photo-input')?.addEventListener('change', handleGlobalPhotoSelect);
+
   const handleAddResearch = () => {
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
@@ -136,16 +222,16 @@ function renderFieldResearchView() {
     const newEntry = {
       id: `res-${Date.now()}`,
       numStr: String(researchList.length + 1).padStart(2, '0'),
-      title: '새 현장 조사 기록',
+      title: `현장 사진 기록 (${todayStr})`,
       date: todayStr,
-      location: '서울',
+      location: '',
       relatedObjectId: '',
-      intro: '현장 조사 개요 및 배경을 기록합니다.',
+      intro: '',
       blocks: [
         {
           id: `blk-${Date.now()}-1`,
-          type: 'text',
-          text: '현장에서 관찰한 사물의 상태와 주변 물리적 환경에 대한 상세한 기록을 작성합니다.'
+          type: 'image',
+          image: './assets/images/obj-001-1.svg'
         }
       ]
     };
@@ -158,6 +244,17 @@ function renderFieldResearchView() {
 
   document.getElementById('btn-fr-add-research')?.addEventListener('click', handleAddResearch);
   document.getElementById('btn-empty-add-res')?.addEventListener('click', handleAddResearch);
+
+  // Click on any photo to view in lightbox
+  container.querySelectorAll('.research-journal-article .editorial-framed-img').forEach(img => {
+    img.style.cursor = 'zoom-in';
+    img.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (window.app && typeof window.app.openLightbox === 'function') {
+        window.app.openLightbox([img.src], 0);
+      }
+    });
+  });
 
   // Bind Entry Controls
   container.querySelectorAll('.btn-trigger-edit-res').forEach(btn => {
@@ -359,8 +456,10 @@ function renderResearchEditor(draft, idx) {
 
         <div class="editor-add-block-toolbar mono">
           <button type="button" class="btn-add-block" id="btn-add-text-block">[+ Add Text]</button>
-          <button type="button" class="btn-add-block" id="btn-add-img-block">[+ Add Image]</button>
+          <button type="button" class="btn-add-block" id="btn-add-img-block">[+ Add Image Block]</button>
           <button type="button" class="btn-add-block" id="btn-add-imgcap-block">[+ Add Image + Caption]</button>
+          <button type="button" class="btn-add-block" id="btn-editor-upload-multi-photos" style="font-weight:bold; color:#000; background:#FAFAFA; border:1px solid #000;">[📷 사진 다중 추가 (여러 장 선택)]</button>
+          <input type="file" id="editor-multi-photo-input" accept="image/*" multiple style="display:none;" />
         </div>
       </div>
 
@@ -392,8 +491,8 @@ function renderBlockEditorItem(blk, bIdx, totalBlocks) {
             <img src="${resolvePath(blk.image)}" class="block-img-preview" id="preview-img-${bIdx}" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
           </div>
           <div class="block-image-inputs">
-            <label class="mono" style="font-size:11px; display:block; margin-bottom:4px;">Upload File:</label>
-            <input type="file" accept="image/*" class="block-file-input mono" data-bidx="${bIdx}" />
+            <label class="mono" style="font-size:11px; display:block; margin-bottom:4px; font-weight:bold;">Upload File (다중 선택 가능):</label>
+            <input type="file" accept="image/*" multiple class="block-file-input mono" data-bidx="${bIdx}" />
             <label class="mono" style="font-size:11px; display:block; margin:6px 0 4px 0;">Or Image URL / Path:</label>
             <input type="text" class="block-url-input mono" data-bidx="${bIdx}" value="${escapeHtml(blk.image || '')}" placeholder="./assets/images/... or https://..." />
           </div>
@@ -457,20 +556,27 @@ function bindEditorEvents(container) {
     });
   };
 
-  // Save buttons
+  // Save buttons (allows photo-only saving without mandatory title or text)
   const handleSave = () => {
     syncDraftMeta();
     syncBlocks();
+
+    // Relaxed validation: default title if user provides only photos
     if (!editDraft.title) {
-      alert('현장 조사 제목을 입력해 주세요.');
-      document.getElementById('draft-title')?.focus();
-      return;
+      const now = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      const todayStr = `${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}`;
+      editDraft.title = `현장 사진 기록 (${editDraft.date || todayStr})`;
     }
 
     const saved = window.app.saveResearch(editDraft);
     editingResearchId = null;
     editDraft = null;
     renderFieldResearchView();
+
+    if (window.triggerSourceSave) {
+      window.triggerSourceSave({ silent: true });
+    }
   };
 
   document.getElementById('btn-save-res-edit')?.addEventListener('click', handleSave);
@@ -562,24 +668,78 @@ function bindEditorEvents(container) {
     });
   });
 
-  // File Upload with compression for image blocks
+  // File Upload with multi-image support for image blocks
   container.querySelectorAll('.block-file-input').forEach(fileInp => {
     fileInp.addEventListener('change', async (e) => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
       const bIdx = parseInt(fileInp.getAttribute('data-bidx'), 10);
+
+      syncDraftMeta();
+      syncBlocks();
+
       try {
-        const compressed = await window.app.compressImageFile(file);
-        syncDraftMeta();
-        syncBlocks();
+        const compressFn = (window.app && typeof window.app.compressImageFile === 'function')
+          ? window.app.compressImageFile
+          : window.compressImageFile;
+
+        const compressedList = await Promise.all(files.map(f => compressFn(f)));
+
         if (editDraft.blocks[bIdx]) {
-          editDraft.blocks[bIdx].image = compressed;
+          editDraft.blocks[bIdx].image = compressedList[0];
         }
+
+        // If user selected multiple images, insert the rest as new image blocks right after bIdx
+        if (compressedList.length > 1) {
+          const extraBlocks = compressedList.slice(1).map((dataUrl, i) => ({
+            id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+            type: 'image',
+            image: dataUrl
+          }));
+          editDraft.blocks.splice(bIdx + 1, 0, ...extraBlocks);
+        }
+
         renderFieldResearchView();
       } catch (err) {
         console.error('Image compression failed:', err);
+        alert('사진 파일 업로드 실패: ' + err.message);
       }
     });
+  });
+
+  // Editor toolbar multi-photo upload button
+  document.getElementById('btn-editor-upload-multi-photos')?.addEventListener('click', () => {
+    document.getElementById('editor-multi-photo-input')?.click();
+  });
+
+  document.getElementById('editor-multi-photo-input')?.addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    syncDraftMeta();
+    syncBlocks();
+
+    try {
+      const compressFn = (window.app && typeof window.app.compressImageFile === 'function')
+        ? window.app.compressImageFile
+        : window.compressImageFile;
+
+      const compressedList = await Promise.all(files.map(f => compressFn(f)));
+      compressedList.forEach((dataUrl, i) => {
+        editDraft.blocks.push({
+          id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+          type: 'image',
+          image: dataUrl
+        });
+      });
+
+      renderFieldResearchView();
+    } catch (err) {
+      console.error('Editor multi-photo upload failed:', err);
+      alert('다중 사진 업로드 실패: ' + err.message);
+    } finally {
+      e.target.value = '';
+    }
   });
 
   // URL input preview update
