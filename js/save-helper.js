@@ -150,6 +150,7 @@
       }, 300);
     }, 4500);
   }
+  window.showSaveToast = showSaveToast;
 
   function cleanupLegacySaveButtons() {
     const oldBtnIds = ['btn-save-to-file', 'btn-col1-save-file', 'btn-photo-save-file', 'btn-fr-save-file', 'btn-memo-save-file'];

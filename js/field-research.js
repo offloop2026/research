@@ -9,7 +9,7 @@
  * - Storage key: archive_field_research_v1
  */
 
-const resolvePath = (url) => (window.resolveImagePath ? window.resolveImagePath(url) : (url && url.startsWith('/') ? '.' + url : (url && !url.startsWith('./') && !url.startsWith('http') && !url.startsWith('data:') ? './' + url : (url || './assets/images/obj-001-1.svg'))));
+const resolvePath = (url) => (window.resolveImagePath ? window.resolveImagePath(url) : (url && url.startsWith('/') ? '.' + url : (url && !url.startsWith('./') && !url.startsWith('http') && !url.startsWith('data:') && !url.startsWith('blob:') ? './' + url : (url || './assets/images/obj-001-1.svg'))));
 
 let editingResearchId = null;
 let editDraft = null;
@@ -20,6 +20,56 @@ function isCmsEditMode() {
   } catch (e) {
     return false;
   }
+}
+
+/**
+ * Process uploaded files into blocks with Blobs saved in IndexedDB
+ */
+async function processFilesToBlocks(files) {
+  const blocks = [];
+  const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|ogg|m4v)$/i.test(file.name);
+    let mediaUrl = '';
+    let mediaId = null;
+
+    if (idb && idb.isSupported) {
+      try {
+        const saved = await idb.saveMediaBlob(file);
+        mediaId = saved.id;
+        mediaUrl = saved.url;
+      } catch (err) {
+        console.warn('[Field Research] saveMediaBlob failed, using object URL:', err);
+        mediaUrl = URL.createObjectURL(file);
+      }
+    } else {
+      mediaUrl = URL.createObjectURL(file);
+    }
+
+    if (isVideo) {
+      blocks.push({
+        id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+        type: 'video',
+        video: mediaUrl,
+        mediaUrl: mediaUrl,
+        mediaId: mediaId,
+        _file: file,
+        caption: ''
+      });
+    } else {
+      blocks.push({
+        id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
+        type: 'image',
+        image: mediaUrl,
+        mediaUrl: mediaUrl,
+        mediaId: mediaId,
+        _file: file
+      });
+    }
+  }
+  return blocks;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -74,10 +124,10 @@ function renderFieldResearchView() {
           <span class="col-header-meta mono" style="opacity:0.4;">${researchList.length}</span>
         </div>
         <div class="col-header-right">
-          <button type="button" class="col-header-edit-badge mono" id="btn-fr-quick-upload-photo" title="사진 파일 다중 선택 및 즉시 등록" style="background:#000; color:#FFF; font-weight:bold;">
-            [📷 + 사진 등록]
+          <button type="button" class="col-header-edit-badge mono" id="btn-fr-quick-upload-photo" title="사진·동영상 파일 다중 선택 및 즉시 등록" style="background:#000; color:#FFF; font-weight:bold;">
+            [📷/🎥 + 미디어 등록]
           </button>
-          <input type="file" id="fr-global-photo-input" accept="image/*" multiple style="display:none;" />
+          <input type="file" id="fr-global-photo-input" accept="image/*,video/*" multiple style="display:none;" />
           <button type="button" class="col-header-edit-badge ${editActive ? 'active' : ''} mono" id="btn-fr-toggle-edit" title="편집 모드 전환">
             ${editActive ? '[EDIT: ON]' : '[Edit]'}
           </button>
@@ -98,7 +148,7 @@ function renderFieldResearchView() {
       <div class="research-empty-state" style="padding: 60px 0; text-align: center;">
         <p class="doc-empty-text">등록된 현장 조사 기록이 없습니다.</p>
         <div style="display:flex; gap:10px; justify-content:center; margin-top:16px;">
-          <button type="button" class="band-text-action mono" id="btn-empty-upload-photos" style="font-weight:bold;">📷 사진 바로 등록 (다중 선택)</button>
+          <button type="button" class="band-text-action mono" id="btn-empty-upload-photos" style="font-weight:bold;">📷/🎥 미디어 바로 등록 (다중 선택)</button>
           ${editActive ? `
             <button type="button" class="band-text-action mono" id="btn-empty-add-res">+ 새 현장 조사 작성</button>
           ` : ''}
@@ -135,17 +185,13 @@ function renderFieldResearchView() {
     }
   });
 
-  // Global Quick Photo Upload Handler (supports multiple photos, zero text required)
+  // Global Quick Media Upload Handler (supports multiple photos & videos, zero text required)
   const handleGlobalPhotoSelect = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
 
     try {
-      const compressFn = (window.app && typeof window.app.compressImageFile === 'function')
-        ? window.app.compressImageFile
-        : window.compressImageFile;
-
-      const compressedList = await Promise.all(files.map(f => compressFn(f)));
+      const newBlocks = await processFilesToBlocks(files);
 
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
@@ -155,18 +201,12 @@ function renderFieldResearchView() {
       if (editingResearchId && editDraft) {
         syncDraftMeta();
         syncBlocks();
-        compressedList.forEach((dataUrl, i) => {
-          editDraft.blocks.push({
-            id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
-            type: 'image',
-            image: dataUrl
-          });
-        });
+        editDraft.blocks.push(...newBlocks);
         renderFieldResearchView();
         return;
       }
 
-      // If not editing, create a new research entry containing all photos immediately
+      // If not editing, create a new research entry containing all media immediately
       const currentList = (window.app && typeof window.app.getResearchList === 'function')
         ? window.app.getResearchList()
         : [];
@@ -179,14 +219,10 @@ function renderFieldResearchView() {
         location: '',
         relatedObjectId: '',
         intro: '',
-        blocks: compressedList.map((dataUrl, i) => ({
-          id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
-          type: 'image',
-          image: dataUrl
-        }))
+        blocks: newBlocks
       };
 
-      const saved = window.app.saveResearch(newEntry);
+      const saved = await window.app.saveResearch(newEntry);
       if (window.triggerSourceSave) {
         window.triggerSourceSave({ silent: true });
       }
@@ -198,7 +234,10 @@ function renderFieldResearchView() {
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
     } catch (err) {
-      console.error('Photo registration failed:', err);
+      console.error('[Field Research] Photo registration failed:', err);
+      if (window.showSaveToast) {
+        window.showSaveToast('⚠️ 등록 실패: ' + err.message, true);
+      }
       alert('사진 등록 처리 중 오류가 발생했습니다: ' + err.message);
     } finally {
       e.target.value = '';
@@ -343,7 +382,7 @@ function renderResearchArticle(entry, idx, isEdit) {
 }
 
 /**
- * Render individual content block (Text, Image, Image+Caption)
+ * Render individual content block (Text, Image, Image+Caption, Video, Video+Caption)
  */
 function renderContentBlock(blk) {
   if (blk.type === 'text') {
@@ -354,8 +393,28 @@ function renderContentBlock(blk) {
     return `<div class="research-block research-block-text">${formatted}</div>`;
   }
 
+  if (blk.type === 'video' || blk.type === 'video-caption') {
+    const src = resolvePath(blk.video || blk.mediaUrl || blk.image);
+    return `
+      <div class="research-block research-block-video">
+        <div class="editorial-frame-outer">
+          <div class="editorial-frame-border">
+            <div class="editorial-frame-inner" style="background:#000;">
+              <video src="${src}" controls playsinline preload="metadata" class="editorial-framed-video" style="width:100%; display:block; max-height:640px; background:#000;"></video>
+            </div>
+          </div>
+        </div>
+        ${blk.caption ? `
+          <div class="research-block-caption serif-italic">
+            ${escapeHtml(blk.caption)}
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
   if (blk.type === 'image') {
-    const src = resolvePath(blk.image);
+    const src = resolvePath(blk.image || blk.mediaUrl);
     return `
       <div class="research-block research-block-image">
         <div class="editorial-frame-outer">
@@ -370,7 +429,7 @@ function renderContentBlock(blk) {
   }
 
   if (blk.type === 'image-caption') {
-    const src = resolvePath(blk.image);
+    const src = resolvePath(blk.image || blk.mediaUrl);
     return `
       <div class="research-block research-block-image-caption">
         <div class="editorial-frame-outer">
@@ -458,8 +517,9 @@ function renderResearchEditor(draft, idx) {
           <button type="button" class="btn-add-block" id="btn-add-text-block">[+ Add Text]</button>
           <button type="button" class="btn-add-block" id="btn-add-img-block">[+ Add Image Block]</button>
           <button type="button" class="btn-add-block" id="btn-add-imgcap-block">[+ Add Image + Caption]</button>
-          <button type="button" class="btn-add-block" id="btn-editor-upload-multi-photos" style="font-weight:bold; color:#000; background:#FAFAFA; border:1px solid #000;">[📷 사진 다중 추가 (여러 장 선택)]</button>
-          <input type="file" id="editor-multi-photo-input" accept="image/*" multiple style="display:none;" />
+          <button type="button" class="btn-add-block" id="btn-add-video-block">[+ Add Video Block]</button>
+          <button type="button" class="btn-add-block" id="btn-editor-upload-multi-photos" style="font-weight:bold; color:#000; background:#FAFAFA; border:1px solid #000;">[📷/🎥 미디어 다중 추가 (사진·동영상)]</button>
+          <input type="file" id="editor-multi-photo-input" accept="image/*,video/*" multiple style="display:none;" />
         </div>
       </div>
 
@@ -483,18 +543,40 @@ function renderBlockEditorItem(blk, bIdx, totalBlocks) {
         <textarea class="editor-block-textarea" data-bidx="${bIdx}" placeholder="본문 텍스트 내용을 작성합니다...">${escapeHtml(blk.text || '')}</textarea>
       </div>
     `;
+  } else if (blk.type === 'video' || blk.type === 'video-caption') {
+    const src = resolvePath(blk.video || blk.mediaUrl || blk.image);
+    innerHtml = `
+      <div class="block-field-body">
+        <div class="block-image-edit-wrap">
+          <div class="block-image-preview-box" style="background:#000; min-height:120px; display:flex; align-items:center; justify-content:center;">
+            <video src="${src}" controls class="block-video-preview" id="preview-video-${bIdx}" style="max-width:100%; max-height:160px;"></video>
+          </div>
+          <div class="block-image-inputs">
+            <label class="mono" style="font-size:11px; display:block; margin-bottom:4px; font-weight:bold;">동영상/사진 파일 업로드:</label>
+            <input type="file" accept="video/*,image/*" multiple class="block-file-input mono" data-bidx="${bIdx}" />
+            <label class="mono" style="font-size:11px; display:block; margin:6px 0 4px 0;">Or Video URL / Path:</label>
+            <input type="text" class="block-url-input mono" data-bidx="${bIdx}" value="${escapeHtml(blk.video || blk.mediaUrl || '')}" placeholder="https://... or ./assets/videos/..." />
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <label class="mono" style="font-size:11px; display:block; margin-bottom:4px;">Caption (선택):</label>
+          <input type="text" class="block-caption-input" data-bidx="${bIdx}" value="${escapeHtml(blk.caption || '')}" placeholder="동영상에 대한 설명 또는 캡션..." />
+        </div>
+      </div>
+    `;
   } else if (blk.type === 'image' || blk.type === 'image-caption') {
+    const src = resolvePath(blk.image || blk.mediaUrl);
     innerHtml = `
       <div class="block-field-body">
         <div class="block-image-edit-wrap">
           <div class="block-image-preview-box">
-            <img src="${resolvePath(blk.image)}" class="block-img-preview" id="preview-img-${bIdx}" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
+            <img src="${src}" class="block-img-preview" id="preview-img-${bIdx}" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
           </div>
           <div class="block-image-inputs">
-            <label class="mono" style="font-size:11px; display:block; margin-bottom:4px; font-weight:bold;">Upload File (다중 선택 가능):</label>
-            <input type="file" accept="image/*" multiple class="block-file-input mono" data-bidx="${bIdx}" />
+            <label class="mono" style="font-size:11px; display:block; margin-bottom:4px; font-weight:bold;">사진/동영상 파일 업로드 (다중 선택 가능):</label>
+            <input type="file" accept="image/*,video/*" multiple class="block-file-input mono" data-bidx="${bIdx}" />
             <label class="mono" style="font-size:11px; display:block; margin:6px 0 4px 0;">Or Image URL / Path:</label>
-            <input type="text" class="block-url-input mono" data-bidx="${bIdx}" value="${escapeHtml(blk.image || '')}" placeholder="./assets/images/... or https://..." />
+            <input type="text" class="block-url-input mono" data-bidx="${bIdx}" value="${escapeHtml(blk.image || blk.mediaUrl || '')}" placeholder="./assets/images/... or https://..." />
           </div>
         </div>
         ${blk.type === 'image-caption' ? `
@@ -547,7 +629,13 @@ function bindEditorEvents(container) {
       const idx = parseInt(inp.getAttribute('data-bidx'), 10);
       if (editDraft.blocks[idx]) {
         const val = inp.value.trim();
-        editDraft.blocks[idx].image = val ? resolvePath(val) : '';
+        if (editDraft.blocks[idx].type === 'video' || editDraft.blocks[idx].type === 'video-caption') {
+          editDraft.blocks[idx].video = val ? resolvePath(val) : '';
+          editDraft.blocks[idx].mediaUrl = editDraft.blocks[idx].video;
+        } else {
+          editDraft.blocks[idx].image = val ? resolvePath(val) : '';
+          editDraft.blocks[idx].mediaUrl = editDraft.blocks[idx].image;
+        }
       }
     });
     container.querySelectorAll('.block-caption-input').forEach(inp => {
@@ -556,12 +644,12 @@ function bindEditorEvents(container) {
     });
   };
 
-  // Save buttons (allows photo-only saving without mandatory title or text)
-  const handleSave = () => {
+  // Save buttons (allows photo/video only saving without mandatory title or text)
+  const handleSave = async () => {
     syncDraftMeta();
     syncBlocks();
 
-    // Relaxed validation: default title if user provides only photos
+    // Relaxed validation: default title if user provides only media
     if (!editDraft.title) {
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
@@ -569,13 +657,41 @@ function bindEditorEvents(container) {
       editDraft.title = `현장 사진 기록 (${editDraft.date || todayStr})`;
     }
 
-    const saved = window.app.saveResearch(editDraft);
-    editingResearchId = null;
-    editDraft = null;
-    renderFieldResearchView();
+    const saveBtns = [
+      document.getElementById('btn-save-res-edit'),
+      document.getElementById('btn-save-res-edit-bottom')
+    ].filter(Boolean);
 
-    if (window.triggerSourceSave) {
-      window.triggerSourceSave({ silent: true });
+    saveBtns.forEach(btn => {
+      btn.innerText = '[⏳ 저장 중...]';
+      btn.disabled = true;
+    });
+
+    try {
+      const saved = await window.app.saveResearch(editDraft);
+      console.log('[Field Research] Successfully saved:', saved.id);
+
+      if (window.showSaveToast) {
+        window.showSaveToast('✓ 정상적으로 저장되었습니다.');
+      }
+
+      editingResearchId = null;
+      editDraft = null;
+      renderFieldResearchView();
+
+      if (window.triggerSourceSave) {
+        window.triggerSourceSave({ silent: true });
+      }
+    } catch (err) {
+      console.error('[Field Research] Save error:', err);
+      if (window.showSaveToast) {
+        window.showSaveToast('⚠️ 저장 실패: ' + err.message, true);
+      }
+      alert('저장 중 오류가 발생했습니다: ' + err.message);
+      saveBtns.forEach(btn => {
+        btn.innerText = '[저장 (Save)]';
+        btn.disabled = false;
+      });
     }
   };
 
@@ -627,6 +743,19 @@ function bindEditorEvents(container) {
     renderFieldResearchView();
   });
 
+  document.getElementById('btn-add-video-block')?.addEventListener('click', () => {
+    syncDraftMeta();
+    syncBlocks();
+    editDraft.blocks.push({
+      id: `blk-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type: 'video',
+      video: '',
+      mediaUrl: '',
+      caption: ''
+    });
+    renderFieldResearchView();
+  });
+
   // Reorder & Delete Block buttons
   container.querySelectorAll('.btn-blk-up').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -668,7 +797,7 @@ function bindEditorEvents(container) {
     });
   });
 
-  // File Upload with multi-image support for image blocks
+  // File Upload with multi-media support for image/video blocks
   container.querySelectorAll('.block-file-input').forEach(fileInp => {
     fileInp.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files || []);
@@ -679,35 +808,29 @@ function bindEditorEvents(container) {
       syncBlocks();
 
       try {
-        const compressFn = (window.app && typeof window.app.compressImageFile === 'function')
-          ? window.app.compressImageFile
-          : window.compressImageFile;
+        const newBlocks = await processFilesToBlocks(files);
+        if (newBlocks.length > 0) {
+          // Replace current block with first uploaded item
+          editDraft.blocks[bIdx] = newBlocks[0];
 
-        const compressedList = await Promise.all(files.map(f => compressFn(f)));
-
-        if (editDraft.blocks[bIdx]) {
-          editDraft.blocks[bIdx].image = compressedList[0];
-        }
-
-        // If user selected multiple images, insert the rest as new image blocks right after bIdx
-        if (compressedList.length > 1) {
-          const extraBlocks = compressedList.slice(1).map((dataUrl, i) => ({
-            id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
-            type: 'image',
-            image: dataUrl
-          }));
-          editDraft.blocks.splice(bIdx + 1, 0, ...extraBlocks);
+          // If multiple files selected, splice remaining blocks right after bIdx
+          if (newBlocks.length > 1) {
+            editDraft.blocks.splice(bIdx + 1, 0, ...newBlocks.slice(1));
+          }
         }
 
         renderFieldResearchView();
       } catch (err) {
-        console.error('Image compression failed:', err);
-        alert('사진 파일 업로드 실패: ' + err.message);
+        console.error('[Field Research] File upload failed:', err);
+        if (window.showSaveToast) {
+          window.showSaveToast('⚠️ 파일 업로드 실패: ' + err.message, true);
+        }
+        alert('미디어 파일 업로드 실패: ' + err.message);
       }
     });
   });
 
-  // Editor toolbar multi-photo upload button
+  // Editor toolbar multi-media upload button
   document.getElementById('btn-editor-upload-multi-photos')?.addEventListener('click', () => {
     document.getElementById('editor-multi-photo-input')?.click();
   });
@@ -720,23 +843,15 @@ function bindEditorEvents(container) {
     syncBlocks();
 
     try {
-      const compressFn = (window.app && typeof window.app.compressImageFile === 'function')
-        ? window.app.compressImageFile
-        : window.compressImageFile;
-
-      const compressedList = await Promise.all(files.map(f => compressFn(f)));
-      compressedList.forEach((dataUrl, i) => {
-        editDraft.blocks.push({
-          id: `blk-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 4)}`,
-          type: 'image',
-          image: dataUrl
-        });
-      });
-
+      const newBlocks = await processFilesToBlocks(files);
+      editDraft.blocks.push(...newBlocks);
       renderFieldResearchView();
     } catch (err) {
-      console.error('Editor multi-photo upload failed:', err);
-      alert('다중 사진 업로드 실패: ' + err.message);
+      console.error('[Field Research] Editor multi-media upload failed:', err);
+      if (window.showSaveToast) {
+        window.showSaveToast('⚠️ 다중 업로드 실패: ' + err.message, true);
+      }
+      alert('다중 미디어 업로드 실패: ' + err.message);
     } finally {
       e.target.value = '';
     }
@@ -746,8 +861,11 @@ function bindEditorEvents(container) {
   container.querySelectorAll('.block-url-input').forEach(urlInp => {
     urlInp.addEventListener('input', () => {
       const bIdx = parseInt(urlInp.getAttribute('data-bidx'), 10);
+      const val = resolvePath(urlInp.value.trim());
       const prevImg = document.getElementById(`preview-img-${bIdx}`);
-      if (prevImg) prevImg.src = resolvePath(urlInp.value.trim());
+      if (prevImg) prevImg.src = val;
+      const prevVid = document.getElementById(`preview-video-${bIdx}`);
+      if (prevVid) prevVid.src = val;
     });
   });
 }

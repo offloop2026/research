@@ -446,6 +446,25 @@ class ArchiveApp {
     } catch (e) {
       console.error('[Archive] Data merge error:', e);
     }
+
+    try {
+      // 3. Load Field Research from IndexedDB (with migration from localStorage if needed)
+      const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+      if (idb && idb.isSupported) {
+        await idb.migrateFromLocalStorage();
+        const idbList = await idb.getAllResearch();
+        if (idbList && idbList.length > 0) {
+          this.data.fieldResearch = idbList;
+        } else if (this.data.fieldResearch && this.data.fieldResearch.length > 0) {
+          // Seed IndexedDB with baseline if empty
+          for (const item of this.data.fieldResearch) {
+            await idb.saveResearch(item);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Archive] IndexedDB research load error:', e);
+    }
   }
 
   persistCustom() {
@@ -487,14 +506,18 @@ class ArchiveApp {
   // --- FIELD RESEARCH ---
   getResearchList() {
     let result = [];
-    try {
-      const raw = localStorage.getItem(FIELD_RESEARCH_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) result = parsed;
+    if (this.data && Array.isArray(this.data.fieldResearch) && this.data.fieldResearch.length > 0) {
+      result = JSON.parse(JSON.stringify(this.data.fieldResearch));
+    } else {
+      try {
+        const raw = localStorage.getItem(FIELD_RESEARCH_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) result = parsed;
+        }
+      } catch (e) {
+        console.warn('[Field Research] Read warning:', e);
       }
-    } catch (e) {
-      console.warn('[Field Research] Read warning:', e);
     }
     if (!result.length && this.data && Array.isArray(this.data.fieldResearch) && this.data.fieldResearch.length > 0) {
       result = JSON.parse(JSON.stringify(this.data.fieldResearch));
@@ -507,6 +530,12 @@ class ArchiveApp {
         entry.blocks.forEach(blk => {
           if (blk && blk.image) {
             blk.image = resolveImagePath(blk.image);
+          }
+          if (blk && blk.video) {
+            blk.video = resolveImagePath(blk.video);
+          }
+          if (blk && blk.mediaUrl) {
+            blk.mediaUrl = resolveImagePath(blk.mediaUrl);
           }
         });
       }
@@ -532,6 +561,12 @@ class ArchiveApp {
         if (blk && blk.image) {
           blk.image = resolveImagePath(blk.image);
         }
+        if (blk && blk.video) {
+          blk.video = resolveImagePath(blk.video);
+        }
+        if (blk && blk.mediaUrl) {
+          blk.mediaUrl = resolveImagePath(blk.mediaUrl);
+        }
       });
     }
 
@@ -544,12 +579,26 @@ class ArchiveApp {
 
     this.data.fieldResearch = list;
 
-    try {
-      localStorage.setItem(FIELD_RESEARCH_KEY, JSON.stringify(list));
-    } catch (e) {
-      console.warn('[Field Research] Write warning:', e);
-      if (e.name === 'QuotaExceededError') {
-        alert('브라우저 로컬 저장소(localStorage) 용량이 초과되어 일부 변경사항이 브라우저 캐시에만 보관됩니다. 상단의 [💾 Save] 버튼을 눌러 소스 파일로 저장해 주세요.');
+    // Asynchronously save to IndexedDB (with Blob extraction and Quota safety)
+    const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+    if (idb && idb.isSupported) {
+      idb.saveResearch(entry).then(savedEntry => {
+        console.log('[Field Research] Successfully saved to IndexedDB:', savedEntry.id);
+        if (window.showSaveToast) {
+          window.showSaveToast('✓ 정상적으로 저장되었습니다.');
+        }
+      }).catch(err => {
+        console.error('[Field Research] IndexedDB Save error:', err);
+        if (window.showSaveToast) {
+          window.showSaveToast('⚠️ 저장 실패: ' + err.message, true);
+        }
+      });
+    } else {
+      // Fallback for test / environments without IndexedDB
+      try {
+        localStorage.setItem(FIELD_RESEARCH_KEY, JSON.stringify(list));
+      } catch (e) {
+        console.warn('[Field Research] Write warning:', e);
       }
     }
 
@@ -568,11 +617,20 @@ class ArchiveApp {
 
     list = list.filter(r => r.id !== id);
     this.data.fieldResearch = list;
-    try {
-      localStorage.setItem(FIELD_RESEARCH_KEY, JSON.stringify(list));
-    } catch (e) {
-      console.warn('[Field Research] Delete warning:', e);
+
+    const idb = (typeof window !== 'undefined' && window.idbStorage) ? window.idbStorage : null;
+    if (idb && idb.isSupported) {
+      idb.deleteResearch(id).catch(e => {
+        console.warn('[Field Research] IndexedDB delete error:', e);
+      });
+    } else {
+      try {
+        localStorage.setItem(FIELD_RESEARCH_KEY, JSON.stringify(list));
+      } catch (e) {
+        console.warn('[Field Research] Delete warning:', e);
+      }
     }
+
     window.dispatchEvent(new CustomEvent('archive-updated', { detail: { type: 'field-research-deleted', id } }));
   }
 
@@ -1537,7 +1595,7 @@ class ArchiveApp {
     });
   }
 }
-
+window.ArchiveApp = ArchiveApp;
 window.app = new ArchiveApp();
 document.addEventListener('DOMContentLoaded', () => {
   window.app.init();
