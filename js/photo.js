@@ -2,67 +2,104 @@
  * PHOTO MODULE (photo.js)
  * Continuous photographic ledger & observation viewer matching Cargo editorial layout:
  * - Column 1: Photo Ledger Index (List of objects & research entries with photo counts)
- * - Column 2: Large Vertical Photographs with 2-column captions & zoom
+ * - Column 2: Large Vertical Photographs with 2-column captions & lightbox zoom
  * - Column 3: Photographic Observations & Attached Records
  * Fully integrates with IndexedDB media blobs, object images, and field research assets.
  */
 
 let activePhotoIndex = 0;
 let filterObjId = 'all';
+let isPhotoRendering = false;
 
-function initPhotoModule() {
-  if (window.app && window.app.isReady) {
-    renderPhoto3Col();
-  } else {
-    window.addEventListener('archive-ready', () => {
-      renderPhoto3Col();
-    }, { once: true });
+/**
+ * Robust, async initialization:
+ * Awaits full data loading from IndexedDB / baseline before triggering renderPhoto3Col.
+ */
+async function initPhotoModule() {
+  const container = document.getElementById('photo-main-container');
+  if (!container) return;
 
-    const checkReady = setInterval(() => {
-      if (window.app && window.app.isReady) {
-        clearInterval(checkReady);
-        renderPhoto3Col();
-      }
-    }, 40);
+  // 1. Resolve app instance (support both window.archiveApp and window.app)
+  let app = window.archiveApp || window.app;
+  if (!app && typeof window.ArchiveApp === 'function') {
+    window.app = new window.ArchiveApp();
+    window.archiveApp = window.app;
+    app = window.app;
   }
 
-  window.addEventListener('archive-updated', () => {
-    renderPhoto3Col();
-  });
+  // 2. Strict async await: wait until IndexedDB data is completely loaded
+  if (app) {
+    try {
+      if (typeof app.loadData === 'function') {
+        await app.loadData();
+      }
+      if (typeof app.init === 'function' && !app.isReady) {
+        await app.init();
+      }
+    } catch (err) {
+      console.warn('[Photo] Awaiting loadData error:', err);
+    }
+  } else {
+    // If app is not loaded yet, wait briefly and retry
+    setTimeout(initPhotoModule, 30);
+    return;
+  }
+
+  // 3. Render photo ledger view with fully hydrated data
+  await renderPhoto3Col();
 }
 
 // Resilient DOM ready listener (handles both early and late script execution)
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initPhotoModule);
+  document.addEventListener('DOMContentLoaded', () => {
+    initPhotoModule();
+  });
 } else {
   initPhotoModule();
 }
 
+// Re-render when archive is updated or ready
+window.addEventListener('archive-updated', () => {
+  renderPhoto3Col();
+});
+window.addEventListener('archive-ready', () => {
+  renderPhoto3Col();
+});
+
+/**
+ * Main 3-Column Editorial Photo Ledger Renderer
+ */
 async function renderPhoto3Col() {
   const container = document.getElementById('photo-main-container');
   if (!container) return;
+  if (isPhotoRendering) return;
+  isPhotoRendering = true;
 
   try {
-    const objects = (window.app && typeof window.app.getObjects === 'function')
-      ? window.app.getObjects()
-      : [];
-    const researchList = (window.app && typeof window.app.getResearchList === 'function')
-      ? window.app.getResearchList()
-      : [];
+    const app = window.archiveApp || window.app;
+    const rawObjects = (app && typeof app.getObjects === 'function')
+      ? app.getObjects()
+      : (app && app.data && app.data.objects ? app.data.objects : []);
+    const objects = Array.isArray(rawObjects) ? rawObjects : [];
+
+    const rawResearch = (app && typeof app.getResearchList === 'function')
+      ? app.getResearchList()
+      : (app && app.data && app.data.fieldResearch ? app.data.fieldResearch : []);
+    const researchList = Array.isArray(rawResearch) ? rawResearch : [];
 
     const seenSrc = new Set();
     const allPhotos = [];
 
     // 1. Collect all photos from Archive Objects
     objects.forEach((obj, objIdx) => {
-      if (!obj) return;
-      const list = (obj.images && Array.isArray(obj.images) && obj.images.length)
+      if (!obj || typeof obj !== 'object') return;
+      const imagesList = (Array.isArray(obj.images) && obj.images.length > 0)
         ? obj.images
         : (obj.representativeImage ? [obj.representativeImage] : []);
 
-      list.forEach((rawSrc, imgIdx) => {
+      imagesList.forEach((rawSrc, imgIdx) => {
         if (!rawSrc) return;
-        const src = (window.resolveImagePath ? window.resolveImagePath(rawSrc) : rawSrc);
+        const src = (window.resolveImagePath ? window.resolveImagePath(rawSrc) : String(rawSrc));
         if (src && !seenSrc.has(src)) {
           seenSrc.add(src);
           allPhotos.push({
@@ -85,14 +122,14 @@ async function renderPhoto3Col() {
 
     // 2. Collect photos from Field Research entries (including IndexedDB Blobs)
     researchList.forEach((entry, rIdx) => {
-      if (!entry) return;
+      if (!entry || typeof entry !== 'object') return;
       const rTitle = entry.title || `리서치 #${entry.numStr || rIdx + 1}`;
       const blocks = Array.isArray(entry.blocks) ? entry.blocks : [];
       blocks.forEach((blk, bIdx) => {
-        if (!blk) return;
+        if (!blk || typeof blk !== 'object') return;
         const rawSrc = blk.image || blk.mediaUrl || (blk.type === 'photo' ? blk.src : null);
         if (!rawSrc) return;
-        const src = (window.resolveImagePath ? window.resolveImagePath(rawSrc) : rawSrc);
+        const src = (window.resolveImagePath ? window.resolveImagePath(rawSrc) : String(rawSrc));
         if (src && !seenSrc.has(src)) {
           seenSrc.add(src);
           allPhotos.push({
@@ -122,6 +159,7 @@ async function renderPhoto3Col() {
           <a href="index.html" class="mono" style="font-size: 12px; color: #111; text-decoration: underline;">&rarr; 아카이브로 이동</a>
         </div>
       `;
+      isPhotoRendering = false;
       return;
     }
 
@@ -137,9 +175,10 @@ async function renderPhoto3Col() {
     const hasPhotos = displayedPhotos.length > 0;
     const activePhoto = hasPhotos ? (displayedPhotos[activePhotoIndex] || displayedPhotos[0]) : null;
     const activeObj = activePhoto ? (activePhoto.obj || {}) : {};
-    const activeMemos = (activeObj.id && !activeObj.isResearch && window.app && typeof window.app.getMemosForObject === 'function')
-      ? window.app.getMemosForObject(activeObj.id)
+    const rawMemos = (activeObj.id && !activeObj.isResearch && app && typeof app.getMemosForObject === 'function')
+      ? app.getMemosForObject(activeObj.id)
       : [];
+    const activeMemos = Array.isArray(rawMemos) ? rawMemos : [];
 
     const allSrcs = displayedPhotos.map(p => p.src);
 
@@ -154,7 +193,7 @@ async function renderPhoto3Col() {
             <span class="col-header-meta mono" style="opacity:0.4;">${allPhotos.length}</span>
           </div>
           <div class="col-header-right">
-            <button class="col-header-menu-btn" title="Navigation">&equiv;</button>
+            <button type="button" class="col-header-menu-btn" title="Navigation">&equiv;</button>
           </div>
         </div>
 
@@ -173,14 +212,14 @@ async function renderPhoto3Col() {
             </div>
 
             ${objects.map((obj, i) => {
-              if (!obj) return '';
+              if (!obj || typeof obj !== 'object') return '';
               const num = String(i + 1).padStart(2, '0');
-              const count = (obj.images && Array.isArray(obj.images) && obj.images.length)
+              const count = (Array.isArray(obj.images) && obj.images.length)
                 ? obj.images.length
                 : (obj.representativeImage ? 1 : 0);
               const isFilterActive = (filterObjId === obj.id);
               return `
-                <div class="archive-ledger-item ${isFilterActive ? 'active' : ''}" data-filter="${obj.id}">
+                <div class="archive-ledger-item ${isFilterActive ? 'active' : ''}" data-filter="${escapeHtml(obj.id || '')}">
                   <div class="ledger-item-row">
                     <span class="ledger-item-num mono">${num}</span>
                     <div class="ledger-item-content">
@@ -194,13 +233,13 @@ async function renderPhoto3Col() {
               `;
             }).join('')}
 
-            ${researchList.filter(r => r && r.blocks && r.blocks.some(b => b && (b.image || b.mediaUrl || b.type === 'photo'))).map((r, ri) => {
-              const photoCount = r.blocks.filter(b => b && (b.image || b.mediaUrl || b.type === 'photo')).length;
+            ${researchList.filter(r => r && Array.isArray(r.blocks) && r.blocks.some(b => b && (b.image || b.mediaUrl || b.type === 'photo'))).map((r, ri) => {
+              const photoCount = Array.isArray(r.blocks) ? r.blocks.filter(b => b && (b.image || b.mediaUrl || b.type === 'photo')).length : 0;
               const isFilterActive = (filterObjId === r.id);
               return `
-                <div class="archive-ledger-item ${isFilterActive ? 'active' : ''}" data-filter="${r.id}">
+                <div class="archive-ledger-item ${isFilterActive ? 'active' : ''}" data-filter="${escapeHtml(r.id || '')}">
                   <div class="ledger-item-row">
-                    <span class="ledger-item-num mono" style="color:#2a7ae2;">R${r.numStr || ri+1}</span>
+                    <span class="ledger-item-num mono" style="color:#2a7ae2;">R${escapeHtml(r.numStr || ri+1)}</span>
                     <div class="ledger-item-content">
                       <h2 class="ledger-item-title">${escapeHtml(r.title || '필드 리서치')}</h2>
                       <div class="ledger-item-meta">
@@ -230,31 +269,35 @@ async function renderPhoto3Col() {
     } else {
       col2BodyHtml = `
         <div class="editorial-photo-stream">
-          ${displayedPhotos.map((item, idx) => `
-            <article class="editorial-photo-entry ${idx === activePhotoIndex ? 'focused' : ''}" data-index="${idx}">
-              <div class="editorial-photo-frame" data-src="${escapeHtml(item.src)}" title="클릭하여 확대">
-                <img src="${escapeHtml(item.src)}" alt="${escapeHtml((item.obj && item.obj.title) || '사진')}" class="editorial-photo-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
-              </div>
+          ${displayedPhotos.map((item, idx) => {
+            if (!item) return '';
+            const obj = item.obj || {};
+            return `
+              <article class="editorial-photo-entry ${idx === activePhotoIndex ? 'focused' : ''}" data-index="${idx}">
+                <div class="editorial-photo-frame" data-src="${escapeHtml(item.src)}" title="클릭하여 확대">
+                  <img src="${escapeHtml(item.src)}" alt="${escapeHtml(obj.title || '사진')}" class="editorial-photo-img" loading="lazy" onerror="if(!this.dataset.failed){this.dataset.failed='1';this.src='./assets/images/obj-001-1.svg';}" />
+                </div>
 
-              <div class="editorial-photo-caption">
-                <div class="caption-col-num mono">
-                  <span>${item.numStr || ''} ${(item.obj && item.obj.id) || ''}</span>
-                </div>
-                <div class="caption-col-content">
-                  <h3 class="caption-title serif-italic">${escapeHtml((item.obj && item.obj.title) || '무제')}</h3>
-                  <div class="caption-spec">
-                    ${item.obj && item.obj.materials ? `${escapeHtml(item.obj.materials)}<br>` : ''}
-                    ${item.obj && item.obj.dimensions ? `${escapeHtml(item.obj.dimensions)}<br>` : ''}
-                    ${item.obj && item.obj.timestamp ? `${escapeHtml(item.obj.timestamp)}` : ''}
+                <div class="editorial-photo-caption">
+                  <div class="caption-col-num mono">
+                    <span>${escapeHtml(item.numStr || '')} ${escapeHtml(obj.id || '')}</span>
                   </div>
-                  ${item.obj && item.obj.description ? `<p class="caption-desc">${escapeHtml(item.obj.description)}</p>` : ''}
-                  <div class="caption-actions">
-                    <button type="button" class="caption-btn-more mono" data-index="${idx}">[확대 보기..]</button>
+                  <div class="caption-col-content">
+                    <h3 class="caption-title serif-italic">${escapeHtml(obj.title || '무제')}</h3>
+                    <div class="caption-spec">
+                      ${obj.materials ? `${escapeHtml(obj.materials)}<br>` : ''}
+                      ${obj.dimensions ? `${escapeHtml(obj.dimensions)}<br>` : ''}
+                      ${obj.timestamp ? `${escapeHtml(obj.timestamp)}` : ''}
+                    </div>
+                    ${obj.description ? `<p class="caption-desc">${escapeHtml(obj.description)}</p>` : ''}
+                    <div class="caption-actions">
+                      <button type="button" class="caption-btn-more mono" data-index="${idx}">[확대 보기..]</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          `).join('')}
+              </article>
+            `;
+          }).join('')}
         </div>
       `;
     }
@@ -267,7 +310,7 @@ async function renderPhoto3Col() {
             <span class="col-header-meta mono" style="opacity:0.4;">${displayedPhotos.length}</span>
           </div>
           <div class="col-header-right">
-            <button class="col-header-menu-btn" title="Navigation">&equiv;</button>
+            <button type="button" class="col-header-menu-btn" title="Navigation">&equiv;</button>
           </div>
         </div>
 
@@ -309,26 +352,29 @@ async function renderPhoto3Col() {
             <div class="memo-entry-header mono">
               <span>FIELD RESEARCH JOURNAL</span>
             </div>
-            <h3 class="memo-entry-title">${escapeHtml(activeObj.title)}</h3>
+            <h3 class="memo-entry-title">${escapeHtml(activeObj.title || '리서치')}</h3>
             <div class="memo-entry-content slip-content">
               ${escapeHtml(activeObj.description || '현장 리서치 관찰 기록입니다.')}
             </div>
           </div>
         `;
-      } else if (activeMemos.length) {
-        attachedMemosHtml = activeMemos.map(m => `
-          <article class="editorial-memo-entry display-mode archival-memo-slip" data-id="${m.id}">
-            <div class="memo-entry-header mono">
-              <span>${escapeHtml(m.timestamp || '')}</span>
-            </div>
-            <h3 class="memo-entry-title">${escapeHtml(m.title || '메모')}</h3>
-            <div class="memo-entry-content slip-content">
-              ${window.keywordService && typeof window.keywordService.renderAnnotatedHtml === 'function'
-                ? window.keywordService.renderAnnotatedHtml(m.id, m.content)
-                : escapeHtml(m.content || '')}
-            </div>
-          </article>
-        `).join('');
+      } else if (activeMemos.length > 0) {
+        attachedMemosHtml = activeMemos.map(m => {
+          if (!m) return '';
+          return `
+            <article class="editorial-memo-entry display-mode archival-memo-slip" data-id="${escapeHtml(m.id || '')}">
+              <div class="memo-entry-header mono">
+                <span>${escapeHtml(m.timestamp || '')}</span>
+              </div>
+              <h3 class="memo-entry-title">${escapeHtml(m.title || '메모')}</h3>
+              <div class="memo-entry-content slip-content">
+                ${window.keywordService && typeof window.keywordService.renderAnnotatedHtml === 'function'
+                  ? window.keywordService.renderAnnotatedHtml(m.id, m.content)
+                  : escapeHtml(m.content || '')}
+              </div>
+            </article>
+          `;
+        }).join('');
       } else {
         attachedMemosHtml = `<p class="band-empty-text">연결된 메모가 없습니다.</p>`;
       }
@@ -375,7 +421,7 @@ async function renderPhoto3Col() {
             <span class="col-header-title">Photographic Records</span>
           </div>
           <div class="col-header-right">
-            <button class="col-header-menu-btn" title="Navigation">&equiv;</button>
+            <button type="button" class="col-header-menu-btn" title="Navigation">&equiv;</button>
           </div>
         </div>
 
@@ -389,6 +435,7 @@ async function renderPhoto3Col() {
 
     // Bind ledger index filters
     container.querySelectorAll('.archive-ledger-item').forEach(item => {
+      if (!item) return;
       item.addEventListener('click', () => {
         filterObjId = item.getAttribute('data-filter') || 'all';
         activePhotoIndex = 0;
@@ -398,6 +445,7 @@ async function renderPhoto3Col() {
 
     // Reset filter button
     container.querySelectorAll('.reset-filter-btn').forEach(btn => {
+      if (!btn) return;
       btn.addEventListener('click', () => {
         filterObjId = 'all';
         activePhotoIndex = 0;
@@ -407,31 +455,31 @@ async function renderPhoto3Col() {
 
     // Bind photo click & zoom button for lightbox & active photo update
     container.querySelectorAll('.editorial-photo-entry').forEach(entry => {
+      if (!entry) return;
       entry.addEventListener('click', (e) => {
         const idx = parseInt(entry.getAttribute('data-index'), 10) || 0;
         activePhotoIndex = idx;
         if (e.target.closest('.caption-btn-more') || e.target.closest('.editorial-photo-frame')) {
-          if (window.app && typeof window.app.openLightbox === 'function') {
-            window.app.openLightbox(allSrcs, idx);
+          if (app && typeof app.openLightbox === 'function') {
+            app.openLightbox(allSrcs, idx);
           }
         } else {
-          // Update Column 3 focus
           renderPhoto3Col();
         }
       });
     });
 
     // Initialize popover menu on '=' buttons
-    if (window.app && typeof window.app.initMenuPopover === 'function') {
+    if (app && typeof app.initMenuPopover === 'function') {
       try {
-        window.app.initMenuPopover();
+        app.initMenuPopover();
       } catch (e) {
         console.warn('[Photo] Popover init warning:', e);
       }
     }
   } catch (err) {
     console.error('[Photo] Fatal rendering error caught and handled:', err);
-    if (container && !container.children.length) {
+    if (container) {
       container.innerHTML = `
         <div style="grid-column: 1 / -1; padding: 60px 20px; text-align: center;">
           <h2 class="band-headline" style="margin-bottom: 8px;">사진 아카이브 로딩 중 문제가 발생했습니다.</h2>
@@ -440,6 +488,8 @@ async function renderPhoto3Col() {
         </div>
       `;
     }
+  } finally {
+    isPhotoRendering = false;
   }
 }
 

@@ -368,28 +368,41 @@ class ArchiveApp {
     return 'archive';
   }
 
-  async init() {
-    await this.loadData();
-    this.isReady = true;
-    this.renderHeader();
-    this.initRegistrationModal();
-    this.initLightbox();
-    this.initMenuPopover();
-    this.initGlobalSaveButton();
-    window.dispatchEvent(new CustomEvent('archive-ready'));
-    console.log('[Archive] Initialized. Objects:', this.data.objects.length, 'Memos:', this.data.memos.length);
+  init() {
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = (async () => {
+      await this.loadData();
+      this.isReady = true;
+      this.renderHeader();
+      this.initRegistrationModal();
+      this.initLightbox();
+      this.initMenuPopover();
+      this.initGlobalSaveButton();
+      window.dispatchEvent(new CustomEvent('archive-ready'));
+      console.log('[Archive] Initialized. Objects:', this.data.objects.length, 'Memos:', this.data.memos.length);
 
-    // Auto-sync custom local modifications to source file (archive.json) on init
-    try {
-      const customStr = localStorage.getItem(LOCAL_OVERRIDE_KEY);
-      const frStr = localStorage.getItem(FIELD_RESEARCH_KEY);
-      if (customStr || frStr) {
-        this.saveToSourceFile({ silent: true });
-      }
-    } catch (e) {}
+      // Auto-sync custom local modifications to source file (archive.json) on init
+      try {
+        const customStr = localStorage.getItem(LOCAL_OVERRIDE_KEY);
+        const frStr = localStorage.getItem(FIELD_RESEARCH_KEY);
+        if (customStr || frStr) {
+          this.saveToSourceFile({ silent: true });
+        }
+      } catch (e) {}
+      return this;
+    })();
+    return this._initPromise;
   }
 
-  async loadData() {
+  loadData() {
+    if (this._loadDataPromise) return this._loadDataPromise;
+    this._loadDataPromise = (async () => {
+      return this._executeLoadData();
+    })();
+    return this._loadDataPromise;
+  }
+
+  async _executeLoadData() {
     // 0. Initialize from reliable baseline as default in-memory safety
     this.data.objects = JSON.parse(JSON.stringify(DEFAULT_BASELINE.objects));
     this.data.memos = JSON.parse(JSON.stringify(DEFAULT_BASELINE.memos));
@@ -1360,8 +1373,8 @@ class ArchiveApp {
       document.body.appendChild(modal);
     }
 
-    document.getElementById('reg-modal-close').addEventListener('click', () => modal.style.display = 'none');
-    document.getElementById('reg-modal-cancel').addEventListener('click', () => modal.style.display = 'none');
+    document.getElementById('reg-modal-close')?.addEventListener('click', () => modal.style.display = 'none');
+    document.getElementById('reg-modal-cancel')?.addEventListener('click', () => modal.style.display = 'none');
 
     this.regImages = [];
     this.regRepIndex = 0;
@@ -1369,7 +1382,7 @@ class ArchiveApp {
     const fileInput = document.getElementById('reg-files');
     const previewRow = document.getElementById('reg-thumbs-preview');
 
-    fileInput.addEventListener('change', async (e) => {
+    fileInput?.addEventListener('change', async (e) => {
       const files = Array.from(e.target.files);
       if (!files.length) return;
 
@@ -1384,7 +1397,7 @@ class ArchiveApp {
       }
     });
 
-    document.getElementById('reg-form').addEventListener('submit', (e) => {
+    document.getElementById('reg-form')?.addEventListener('submit', (e) => {
       e.preventDefault();
       const title = document.getElementById('reg-title').value.trim();
       const timestamp = document.getElementById('reg-time').value.trim();
@@ -1503,9 +1516,9 @@ class ArchiveApp {
       document.body.appendChild(lb);
     }
 
-    document.getElementById('lb-close').addEventListener('click', () => lb.style.display = 'none');
-    document.getElementById('lb-prev').addEventListener('click', () => this.stepLightbox(-1));
-    document.getElementById('lb-next').addEventListener('click', () => this.stepLightbox(1));
+    document.getElementById('lb-close')?.addEventListener('click', () => lb.style.display = 'none');
+    document.getElementById('lb-prev')?.addEventListener('click', () => this.stepLightbox(-1));
+    document.getElementById('lb-next')?.addEventListener('click', () => this.stepLightbox(1));
 
     document.addEventListener('keydown', (e) => {
       if (lb.style.display === 'flex') {
@@ -1643,6 +1656,7 @@ class ArchiveApp {
 }
 window.ArchiveApp = ArchiveApp;
 window.app = new ArchiveApp();
+window.archiveApp = window.app;
 document.addEventListener('DOMContentLoaded', () => {
   window.app.init();
 });
